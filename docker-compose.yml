@@ -1,0 +1,13 @@
+# Optional. UNTESTED in this release (Docker was not available on the build machine).
+# Usage: docker compose up --build   then open http://localhost:8000
+services:
+  threatready:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      THREATREADY_BOOTSTRAP_ADMIN_PASSWORD: ${THREATREADY_BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes:
+      - threatready-data:/data
+volumes:
+  threatready-data:

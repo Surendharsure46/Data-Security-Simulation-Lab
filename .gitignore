@@ -1,0 +1,19 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Local data (SQLite database, lab files, e2e state)
+backend/var/
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+# Secrets
+.env
+backend/.env
+*.pem
+*.key
+.claude/
+*.tsbuildinfo

@@ -1,0 +1,257 @@
+"""Curriculum content: levels, modules, lessons, pathways and knowledge checks.
+
+Lesson completion is always tied to a server-verified activity (scenario task, lab
+exercise or graded knowledge check). Reading a lesson never completes it.
+Module ``status`` is an honest implementation status shown in the UI.
+"""
+from __future__ import annotations
+
+REF = "customer-data-export"
+
+
+def task(t: str) -> dict:
+    return {"type": "scenario_task", "scenario": REF, "task": t}
+
+
+def lab(lab_key: str, ex: str) -> dict:
+    return {"type": "lab_exercise", "lab": lab_key, "exercise": ex}
+
+
+def quiz(qid: str) -> dict:
+    return {"type": "lab_exercise", "lab": "knowledge", "exercise": qid}
+
+
+MODULES = [
+    {"id": "M01", "title": "Data Discovery & Classification", "route": "/discovery", "status": "AVAILABLE", "mode": "SIMULATED",
+     "summary": "Find sensitive data, interpret detector evidence, classify with justification and close ownership gaps."},
+    {"id": "M02", "title": "DLP & Insider Risk", "route": "/policies", "status": "AVAILABLE", "mode": "SIMULATED",
+     "summary": "Build, test and tune executable DLP policies; separate detection from enforcement."},
+    {"id": "M03", "title": "Encryption & Key Management", "route": "/labs/encryption", "status": "AVAILABLE", "mode": "REAL_LAB",
+     "summary": "Real AES-256-GCM, hashing, envelope encryption and key rotation on disposable local files, plus a configuration review."},
+    {"id": "M04", "title": "Database Security", "route": "/labs/database", "status": "AVAILABLE", "mode": "REAL_LAB",
+     "summary": "Real SQLite lab database: privilege enforcement, SQL injection vs parameterised queries, masking, auditing, backup/restore."},
+    {"id": "M05", "title": "Privacy & Data Governance", "route": "/labs/privacy", "status": "AVAILABLE", "mode": "SIMULATED",
+     "summary": "Minimisation, retention and deletion against disposable synthetic records; privacy findings report."},
+    {"id": "M06", "title": "Cloud Data Security / DSPM", "route": "/labs/cloud", "status": "AVAILABLE", "mode": "SIMULATED",
+     "summary": "Simulated object-storage posture: exposure scoring, synthetic audit events, remediation and re-assessment."},
+    {"id": "M07", "title": "Data Security SOC & Incident Response", "route": "/investigation", "status": "AVAILABLE", "mode": "SIMULATED",
+     "summary": "Alert triage, correlation, evidence-based cases, containment, verification and reporting."},
+    {"id": "M08", "title": "Data Security Engineering", "route": "/engineering", "status": "AVAILABLE", "mode": "SIMULATED",
+     "summary": "Policy versioning, labelled test suites, detection metrics, regression comparison and change records."},
+    {"id": "M09", "title": "AI Data Security", "route": "/labs/ai", "status": "AVAILABLE", "mode": "SIMULATED",
+     "summary": "Prompt DLP for AI destinations, permission-aware retrieval (RAG) and AI log retention — no external model calls."},
+    {"id": "M10", "title": "Enterprise Capstone", "route": "/learning", "status": "PLANNED", "mode": "SIMULATED",
+     "summary": "Multi-stage capstone across all modules. Not implemented in this release; the reference scenario in independent "
+                "assessment mode is the current end-to-end evaluation."},
+]
+
+LESSONS = [
+    # M01
+    {"id": "M01-L1", "module": "M01", "level": "L0", "title": "Data security and the data lifecycle",
+     "body": "Data security protects confidentiality, integrity and availability of information across its lifecycle: create, store, use, share, archive and destroy. Controls differ by stage: classification at creation, access control and encryption at rest, DLP during sharing, retention and secure deletion at the end. Most incidents happen at the 'share' stage, when data crosses a boundary its owner did not intend.",
+     "practice": "Answer the knowledge check.", "check": quiz("M01-L1")},
+    {"id": "M01-L2", "module": "M01", "level": "L0", "title": "Structured, unstructured and sensitive data types",
+     "body": "Structured data lives in tables with known columns (a CRM table); unstructured data lives in documents and messages. Sensitive types include personal data (names with contact details), financial data (card numbers, bank accounts), national identifiers, credentials and confidential business information. Discovery finds where data is; classification decides how sensitive it is and therefore which controls apply.",
+     "practice": "Answer the knowledge check.", "check": quiz("M01-L2")},
+    {"id": "M01-L3", "module": "M01", "level": "L1", "title": "Discovery scanning and detector evidence",
+     "body": "Detectors combine patterns with validators (Luhn for card numbers, mod-97 for IBANs) and context keywords to assign confidence. A recommendation is evidence, not a decision: review the masked evidence, the business context and the label definitions before assigning a label.",
+     "practice": "In the reference scenario, run a discovery scan and classify the customer export with an owner.", "check": task("classify")},
+    {"id": "M01-L4", "module": "M01", "level": "L1", "title": "Classification mistakes and false positives",
+     "body": "Published test card numbers, masked samples and staff directories trigger detectors but may deserve lower labels; unlabeled bulk extracts and integration secrets are often under-classified. Record your justification so a reviewer can follow the decision.",
+     "practice": "Run a discovery scan in the reference scenario and review LOW-confidence findings.", "check": task("discover")},
+    {"id": "M01-L5", "module": "M01", "level": "L1", "title": "Ownership and access review",
+     "body": "Every sensitive asset needs an accountable owner. Access reviews compare who can read data with who needs it; inherited folder permissions are a common source of excessive access.",
+     "practice": "Record an access-review decision for the customer export.", "check": task("access_review")},
+    # M02
+    {"id": "M02-L1", "module": "M02", "level": "L0", "title": "Detection versus enforcement",
+     "body": "Detection observes and alerts; enforcement changes the outcome (warn, block). Monitor-only policies are useful for piloting but never stop data loss. Context (who, where, why) separates legitimate transfers from prohibited ones.",
+     "practice": "Answer the knowledge check.", "check": quiz("M02-L1")},
+    {"id": "M02-L2", "module": "M02", "level": "L1", "title": "Building an executable DLP policy",
+     "body": "A policy combines scope (actions), conditions on content, actor and destination, an outcome, severity and exceptions. Prefer conditions that survive missing labels (content detection) alongside label-based conditions.",
+     "practice": "Create or update a DLP policy in the reference scenario.", "check": task("policy")},
+    {"id": "M02-L3", "module": "M02", "level": "L1", "title": "Testing policies before rollout",
+     "body": "Dry runs show the evaluation trace for a hypothetical transfer: which conditions were met, which exception applied, and which policy decided the outcome. Always test a prohibited case and a legitimate case.",
+     "practice": "Run dry-run tests with at least two different outcomes.", "check": task("policy_test")},
+    {"id": "M02-L4", "module": "M02", "level": "L3", "title": "Tuning, exceptions, false positives and false negatives",
+     "body": "A false positive blocks or alerts on legitimate activity; a false negative misses prohibited activity. Exceptions should be narrow (specific destination plus business context), documented and tested against a labelled dataset.",
+     "practice": "Run the labelled policy test suite in Data Security Engineering.", "check": {"type": "policy_test_suite_run", "scenario": REF}},
+    {"id": "M02-L5", "module": "M02", "level": "L2", "title": "Insider-risk indicators and escalation",
+     "body": "Indicators such as bulk downloads followed by transfers to personal destinations justify investigation, not conclusions. Departure notices or contractor status are context, not proof. Escalate to HR and Legal through the documented process.",
+     "practice": "Triage every alert from the business-day run.", "check": task("triage")},
+    # M03
+    {"id": "M03-L1", "module": "M03", "level": "L0", "title": "Hashing versus encryption",
+     "body": "Hashes are one-way fingerprints (integrity); encryption is reversible with a key (confidentiality). Symmetric ciphers use one shared key; asymmetric schemes use key pairs, typically to exchange or wrap symmetric keys.",
+     "practice": "Complete the hashing exercise in the Encryption Lab.", "check": lab("encryption", "hashing")},
+    {"id": "M03-L2", "module": "M03", "level": "L1", "title": "Authenticated file encryption",
+     "body": "AES-256-GCM provides confidentiality and integrity. Keys derived from passwords need a slow KDF (scrypt) and a random salt; nonces must never repeat for the same key. Decryption with the wrong key or tampered ciphertext must fail.",
+     "practice": "Encrypt a file, then prove a wrong password and a tampered file are rejected.", "check": lab("encryption", "file_roundtrip")},
+    {"id": "M03-L3", "module": "M03", "level": "L3", "title": "Envelope encryption and key rotation",
+     "body": "Data is encrypted with a data key (DEK); the DEK is wrapped by a key-encryption key (KEK). Rotating the KEK re-wraps DEKs without re-encrypting the data.",
+     "practice": "Rotate the KEK and verify the data still decrypts.", "check": lab("encryption", "envelope_rotation")},
+    {"id": "M03-L4", "module": "M03", "level": "L4", "title": "TLS and visible metadata",
+     "body": "TLS protects payloads in transit but leaves metadata visible: IP addresses, ports, timing, sizes and usually the server name (SNI). Certificate validation prevents interception.",
+     "practice": "Complete the TLS metadata exercise.", "check": lab("encryption", "tls_metadata")},
+    {"id": "M03-L5", "module": "M03", "level": "L3", "title": "Encryption configuration review",
+     "body": "Common weaknesses: legacy TLS versions, keys stored beside data, missing rotation, unencrypted backups and disabled certificate validation.",
+     "practice": "Remediate the configuration until the validator reports no findings.", "check": lab("encryption", "config_review")},
+    # M04
+    {"id": "M04-L1", "module": "M04", "level": "L1", "title": "Least privilege for database roles",
+     "body": "Grant each role the minimum tables and columns it needs. SQLite has no native role system, so this lab enforces roles with SQLite's authorizer callback; PostgreSQL and MySQL use GRANT/REVOKE.",
+     "practice": "Revoke the excessive grant and prove the role is denied.", "check": lab("database", "least_privilege")},
+    {"id": "M04-L2", "module": "M04", "level": "L1", "title": "SQL injection and parameterised queries",
+     "body": "Concatenating input into SQL lets input become code. Parameterised queries send values separately so they are never parsed as SQL.",
+     "practice": "Show the injection succeeds against the vulnerable lookup and fails against the parameterised one.", "check": lab("database", "injection")},
+    {"id": "M04-L3", "module": "M04", "level": "L3", "title": "Masking sensitive columns",
+     "body": "Masking views expose only what a role needs (last four digits, domain of an email). Masking is not encryption: the base table still holds the full value.",
+     "practice": "Enable masking and verify the support role sees masked values.", "check": lab("database", "masking")},
+    {"id": "M04-L4", "module": "M04", "level": "L2", "title": "Database auditing and bulk access",
+     "body": "Audit logs record who queried what and how many rows were returned. Bulk reads by roles that normally fetch single records are a strong signal.",
+     "practice": "Identify the bulk query in the audit log.", "check": lab("database", "audit")},
+    {"id": "M04-L5", "module": "M04", "level": "L3", "title": "Backup and restore verification",
+     "body": "A backup is only proven by a restore. Verify row counts and checksums after restoring into an isolated copy.",
+     "practice": "Back up, damage, restore and verify the lab database.", "check": lab("database", "backup_restore")},
+    # M05
+    {"id": "M05-L1", "module": "M05", "level": "L0", "title": "Privacy obligations versus security safeguards",
+     "body": "Security protects data; privacy governs whether and why it is processed: purpose limitation, minimisation, retention, individual rights. Legal obligations depend on jurisdiction and must be confirmed with Legal or the Privacy Office; this platform does not provide legal advice.",
+     "practice": "Answer the knowledge check.", "check": quiz("M05-L1")},
+    {"id": "M05-L2", "module": "M05", "level": "L4", "title": "Data minimisation",
+     "body": "Collect and keep only fields needed for the documented purpose.",
+     "practice": "Identify unnecessary fields in the marketing dataset.", "check": lab("privacy", "minimization")},
+    {"id": "M05-L3", "module": "M05", "level": "L4", "title": "Retention and deletion",
+     "body": "Retention rules state how long each category is kept; deletion must be verified and exceptions (legal hold) documented.",
+     "practice": "Configure retention and delete expired disposable records.", "check": lab("privacy", "retention")},
+    {"id": "M05-L4", "module": "M05", "level": "L4", "title": "Privacy findings report",
+     "body": "A privacy findings report records findings, the evidence, the decision taken and open items needing Legal review.",
+     "practice": "Generate the privacy findings report after completing the other exercises.", "check": lab("privacy", "report")},
+    # M06
+    {"id": "M06-L1", "module": "M06", "level": "L4", "title": "Cloud data exposure assessment",
+     "body": "Posture tools combine data sensitivity, access configuration (public, cross-account, broad roles) and activity into an exposure score.",
+     "practice": "Assess the simulated storage estate and identify the highest-exposure bucket.", "check": lab("cloud", "assess")},
+    {"id": "M06-L2", "module": "M06", "level": "L4", "title": "Remediation and verification",
+     "body": "Remove public access, narrow principals and enable encryption, then re-assess to prove exposure dropped.",
+     "practice": "Reduce total exposure below the target and re-assess.", "check": lab("cloud", "remediate")},
+    # M07
+    {"id": "M07-L1", "module": "M07", "level": "L2", "title": "Alert triage and dispositions",
+     "body": "True positive: the activity is what the alert describes and is a problem. Benign positive: the rule matched correctly but the activity is legitimate. False positive: the rule matched something it should not. Undetermined: evidence is insufficient.",
+     "practice": "Triage every alert from the business day.", "check": task("triage")},
+    {"id": "M07-L2", "module": "M07", "level": "L2", "title": "Evidence, correlation and analytic notes",
+     "body": "Correlate on explicit attributes (actor, resource, transaction). Separate observations (what events show) from inferences (what you conclude) and unknowns.",
+     "practice": "Link evidence and record each note type.", "check": task("analysis")},
+    {"id": "M07-L3", "module": "M07", "level": "L2", "title": "Scope and severity",
+     "body": "Scope = affected assets, records and whether data left the organisation. Severity follows the documented risk model.",
+     "practice": "Record scope and severity in your case.", "check": task("scope")},
+    {"id": "M07-L4", "module": "M07", "level": "L2", "title": "Containment and evidence preservation",
+     "body": "Contain proportionately and preserve evidence before destructive device actions.",
+     "practice": "Apply containment in the reference scenario.", "check": task("contain")},
+    {"id": "M07-L5", "module": "M07", "level": "L2", "title": "Incident reporting",
+     "body": "Reports state what is known, how it is known, what remains unknown and what was done and verified.",
+     "practice": "Complete the incident report fields.", "check": task("report")},
+    # M08
+    {"id": "M08-L1", "module": "M08", "level": "L3", "title": "Change records for policy changes",
+     "body": "Every production rule change needs a reason, expected impact, test evidence and a rollback plan.",
+     "practice": "Create a change record linked to a test-suite run.", "check": {"type": "change_record", "scenario": REF}},
+    {"id": "M08-L2", "module": "M08", "level": "L3", "title": "Detection metrics and regression",
+     "body": "Precision and recall on a labelled set reveal trade-offs; compare runs to catch regressions. Metrics describe the test set, not production.",
+     "practice": "Run the test suite at least twice and compare.", "check": {"type": "policy_test_suite_runs", "scenario": REF, "count": 2}},
+    {"id": "M08-L3", "module": "M08", "level": "L3", "title": "Verification by replay",
+     "body": "A fix is proven when the same activity, replayed against the changed controls, produces the corrected outcome without disrupting legitimate work.",
+     "practice": "Run a control-validation replay after your last fix.", "check": task("verify")},
+    # M09
+    {"id": "M09-L1", "module": "M09", "level": "L4", "title": "Prompt DLP for AI destinations",
+     "body": "Prompts are data transfers. Apply the same content and destination controls to unapproved AI services.",
+     "practice": "Configure the prompt gateway so confidential prompts to the unapproved AI are blocked and approved use continues.", "check": lab("ai", "prompt_gateway")},
+    {"id": "M09-L2", "module": "M09", "level": "L4", "title": "Permission-aware retrieval (RAG)",
+     "body": "Retrieval systems must enforce the source document permissions of the requesting user, or the assistant becomes a permission bypass.",
+     "practice": "Fix the retriever so the support role cannot retrieve HR documents.", "check": lab("ai", "rag_acl")},
+    {"id": "M09-L3", "module": "M09", "level": "L4", "title": "AI logging and retention",
+     "body": "Prompt logs can contain sensitive data; minimise, redact and retain them only as long as necessary.",
+     "practice": "Correct the AI logging configuration.", "check": lab("ai", "retention")},
+    # M10
+    {"id": "M10-L1", "module": "M10", "level": "L5", "title": "Independent assessment",
+     "body": "Pass the reference scenario in independent assessment mode (no hints, unpredictable variant). The multi-stage enterprise capstone is planned but not implemented in this release.",
+     "practice": "Pass the reference scenario in ASSESSMENT mode.", "check": {"type": "assessment_passed", "scenario": REF, "mode": "ASSESSMENT"}},
+]
+
+LEVELS = [
+    {"id": "L0", "title": "Foundation", "prerequisites": [],
+     "objectives": ["Explain the data lifecycle and sensitive data types", "Distinguish detection from enforcement", "Distinguish hashing from encryption and privacy from security"],
+     "practical_tasks": ["Knowledge checks", "Hashing exercise"], "scenario_variations": ["None (guided)"],
+     "required_evidence": ["Passed knowledge checks", "Hash comparison result"],
+     "rubric": "Knowledge checks require 75% correct; exercises verified server-side.",
+     "critical_failures": ["None at this level"], "remediation": ["Repeat the lesson and knowledge check"],
+     "unlock": {"requires": [], "min_lessons_in_previous": 0}},
+    {"id": "L1", "title": "Practitioner", "prerequisites": ["L0"],
+     "objectives": ["Run discovery and classify with justification", "Configure and test a DLP policy", "Encrypt files correctly", "Apply least privilege and parameterised queries"],
+     "practical_tasks": ["Reference scenario discovery, classification, access review, policy creation and testing", "Encryption and database labs"],
+     "scenario_variations": ["Reference scenario variants A/B"], "required_evidence": ["Classification register entries", "Policy versions and dry-run traces", "Lab results"],
+     "rubric": "Task completion verified from session state; lab exercises verified by real operations.",
+     "critical_failures": ["None at this level"], "remediation": ["Use guided hints; repeat the lab exercise"],
+     "unlock": {"requires": ["L0"], "min_lessons_in_previous": 4}},
+    {"id": "L2", "title": "Analyst", "prerequisites": ["L1"],
+     "objectives": ["Triage alerts independently", "Correlate events and build evidence-based cases", "Scope incidents and write reports"],
+     "practical_tasks": ["Reference scenario investigation stages", "Database audit exercise"],
+     "scenario_variations": ["Variants A/B with different subjects and channels"], "required_evidence": ["Alert dispositions with justification", "Case evidence and notes", "Incident report"],
+     "rubric": "Assessment rubric categories: detection & analysis, evidence quality, documentation.",
+     "critical_failures": ["Destroying evidence before preservation"], "remediation": ["M07 lessons; re-attempt with a new variant"],
+     "unlock": {"requires": ["L1"], "min_lessons_in_previous": 6}},
+    {"id": "L3", "title": "Engineer", "prerequisites": ["L2"],
+     "objectives": ["Tune policies against labelled data", "Measure and compare detection metrics", "Verify fixes by replay without business disruption"],
+     "practical_tasks": ["Engineering test suite runs and comparison", "Change records", "Control-validation replay", "Key rotation, masking, backup/restore"],
+     "scenario_variations": ["Different policy designs produce different metrics"], "required_evidence": ["Test-suite runs", "Change record", "Validation replay"],
+     "rubric": "Remediation & validation category; metrics reported with dataset scope.",
+     "critical_failures": ["Exfiltration path not verified closed"], "remediation": ["M08 lessons"],
+     "unlock": {"requires": ["L2"], "min_lessons_in_previous": 5}},
+    {"id": "L4", "title": "Advanced Practitioner / Architect", "prerequisites": ["L3"],
+     "objectives": ["Assess cross-domain exposure (cloud, AI, privacy)", "Make and justify architectural trade-offs"],
+     "practical_tasks": ["Cloud DSPM lab", "AI data security lab", "Privacy lab", "TLS metadata exercise"],
+     "scenario_variations": ["Lab state can be reset and re-attempted"], "required_evidence": ["Exposure scores before/after", "Lab reports"],
+     "rubric": "Lab exercises verified server-side against explicit target states.",
+     "critical_failures": ["Deleting records under legal hold (privacy lab)"], "remediation": ["Repeat lab with reset state"],
+     "unlock": {"requires": ["L3"], "min_lessons_in_previous": 5}},
+    {"id": "L5", "title": "Independent Mastery", "prerequisites": ["L4"],
+     "objectives": ["Complete an unfamiliar scenario variant independently with evidence-supported decisions"],
+     "practical_tasks": ["Reference scenario in ASSESSMENT mode (no hints)", "Enterprise capstone (planned, not implemented)"],
+     "scenario_variations": ["Random variant per attempt"], "required_evidence": ["Submitted assessment with passing score and no critical failures"],
+     "rubric": "Full five-category rubric; pass threshold 70 with no critical failures.",
+     "critical_failures": ["Evidence destroyed", "Exfiltration path not verified closed"], "remediation": ["Targeted lessons listed in the assessment report"],
+     "unlock": {"requires": ["L4"], "min_lessons_in_previous": 6}},
+]
+
+PATHWAYS = [
+    {"id": "foundation", "title": "Data Security Foundations", "audience": "Freshers and career changers",
+     "lessons": ["M01-L1", "M01-L2", "M02-L1", "M03-L1", "M05-L1", "M01-L3", "M01-L4", "M01-L5"]},
+    {"id": "dlp-engineer", "title": "DLP Engineer", "audience": "DLP and information-protection engineers",
+     "lessons": ["M01-L3", "M01-L4", "M02-L1", "M02-L2", "M02-L3", "M02-L4", "M02-L5", "M08-L1", "M08-L2", "M08-L3", "M09-L1"]},
+    {"id": "soc-analyst", "title": "Data Security SOC Analyst", "audience": "SOC and incident-response analysts",
+     "lessons": ["M01-L3", "M02-L5", "M04-L4", "M07-L1", "M07-L2", "M07-L3", "M07-L4", "M07-L5", "M08-L3"]},
+    {"id": "data-protection-engineer", "title": "Data Protection Engineer", "audience": "Engineers building encryption, database and cloud controls",
+     "lessons": ["M03-L1", "M03-L2", "M03-L3", "M03-L5", "M04-L1", "M04-L2", "M04-L3", "M04-L5", "M06-L1", "M06-L2"]},
+]
+
+# Knowledge checks. Correct answers never leave the server.
+QUIZZES = {
+    "M01-L1": [
+        {"q": "At which lifecycle stage do most data-loss incidents occur?", "options": ["Create", "Share", "Archive", "Destroy"], "answer": 1},
+        {"q": "Which control primarily belongs to the 'destroy' stage?", "options": ["DLP", "Verified secure deletion", "Classification", "TLS"], "answer": 1},
+        {"q": "Integrity means…", "options": ["Data is secret", "Data is unaltered and trustworthy", "Data is always available", "Data is encrypted"], "answer": 1},
+        {"q": "Classification is best applied…", "options": ["Only after an incident", "At creation and reviewed over time", "Only by IT", "Never for internal data"], "answer": 1},
+    ],
+    "M01-L2": [
+        {"q": "A CRM customer table is…", "options": ["Unstructured data", "Structured data", "Metadata only", "Public data"], "answer": 1},
+        {"q": "Discovery answers which question?", "options": ["How sensitive is it?", "Where is the data?", "Who should be fired?", "Which cipher to use?"], "answer": 1},
+        {"q": "Which item is a national identifier?", "options": ["Work email", "Social Security number", "Product SKU", "Ticket ID"], "answer": 1},
+        {"q": "A detector match with a validator (e.g. Luhn) usually means…", "options": ["Certain sensitive data", "Higher confidence, still needs context", "A false positive", "The file is encrypted"], "answer": 1},
+    ],
+    "M02-L1": [
+        {"q": "A MONITOR outcome…", "options": ["Stops the transfer", "Records and may alert but allows the transfer", "Deletes the file", "Disables the user"], "answer": 1},
+        {"q": "Which is enforcement?", "options": ["An alert", "A dashboard", "Blocking an upload", "A weekly report"], "answer": 2},
+        {"q": "Why pilot policies in monitor mode first?", "options": ["It is legally required", "To measure false positives before blocking business activity", "Blocking is impossible", "To avoid logging"], "answer": 1},
+        {"q": "Which context best separates legitimate from prohibited transfers?", "options": ["File size only", "Destination, actor role and business purpose", "Time of day only", "File extension only"], "answer": 1},
+    ],
+    "M05-L1": [
+        {"q": "Purpose limitation means…", "options": ["Encrypt everything", "Use data only for the purposes it was collected for", "Delete all logs", "Limit staff headcount"], "answer": 1},
+        {"q": "Who should confirm legal notification obligations after a personal-data incident?", "options": ["The SOC analyst alone", "Legal / Privacy Office", "The data subject", "The vendor"], "answer": 1},
+        {"q": "Encryption of a database…", "options": ["Satisfies every privacy obligation", "Is a security safeguard; privacy obligations still apply", "Removes the need for retention rules", "Makes the data anonymous"], "answer": 1},
+        {"q": "Data minimisation asks…", "options": ["Is this field needed for the purpose?", "Is the disk full?", "Is the data compressed?", "Is the backup recent?"], "answer": 0},
+    ],
+}
