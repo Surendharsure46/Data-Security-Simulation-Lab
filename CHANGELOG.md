@@ -20,6 +20,7 @@
 - The Python backend (`backend/`). A copy of the 0.3.1 tree is in `threatready-backup-before-nestjs-2026-10-14.zip` next to the project folder. Existing SQLite accounts and data are not migrated.
 
 ### Fixed during verification
+- Hosting (Render): the API listens on `PORT` and `0.0.0.0` in production, uses `RENDER_EXTERNAL_URL` as its public origin, applies migrations at start-up (`THREATREADY_MIGRATE_ON_START`), and no longer demands email verification or staff two-factor when there is no mail delivery or enrolment screen. Added a root `npm start`.
 - Nest treated Zod schemas passed to parameter decorators as pipes (they have a `transform` method); schemas are now wrapped.
 - A runaway cross join kept its SQLite lock in a worker thread; statements now run in a killable child process.
 - pg-boss installs its schema with multi-statement scripts, which PGlite's `query()` rejects; parameterless scripts now go through `exec()`.

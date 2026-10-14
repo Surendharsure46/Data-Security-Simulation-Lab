@@ -25,11 +25,11 @@ const UI_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-
   + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-/** Open the database, apply migrations (outside production), initialise identity and validate content. */
+/** Open the database, apply pending migrations (unless THREATREADY_MIGRATE_ON_START=false), initialise identity and validate content. */
 export async function initPlatform(opts: { database?: Database; migrate?: boolean } = {}): Promise<Database> {
   const cfg = getConfig();
   const database = opts.database ?? createDatabase(cfg.databaseUrl);
-  if (opts.migrate ?? !cfg.production) await database.migrate();
+  if (opts.migrate ?? cfg.migrateOnStart) await database.migrate();
   setDatabase(database);
   createAuth(database);
   allDefinitions(); // fail fast on an invalid scenario definition

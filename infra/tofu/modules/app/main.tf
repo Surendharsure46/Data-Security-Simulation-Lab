@@ -32,6 +32,7 @@ locals {
     { name = "THREATREADY_PUBLIC_URL", value = "https://${var.domain}" },
     { name = "THREATREADY_TRUSTED_ORIGINS", value = "https://${var.domain}" },
     { name = "THREATREADY_LAB_DATA_DIR", value = "/data/labs" },
+    { name = "THREATREADY_MIGRATE_ON_START", value = "false" }, # the threatready-migrate task runs migrations
     { name = "THREATREADY_STORAGE_DRIVER", value = "local" },
     { name = "THREATREADY_MAIL_DRIVER", value = "console" },
     { name = "THREATREADY_SENTRY_DSN", value = var.sentry_dsn },

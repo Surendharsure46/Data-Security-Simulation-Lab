@@ -32,7 +32,7 @@ Every request passes, in order:
 1. **Throttler** (`@nestjs/throttler`, per IP) and, for `/api/auth/login|register`, a per-IP and per-email sliding window.
 2. **Identity**: `AuthGuard` resolves the Better Auth session cookie to a `Principal` (user id, organization, role, staff flag, MFA). Deactivated users resolve to nobody.
 3. **Route policy**: every route declares `@Permission(...)` or `@Public()`. A route with neither is refused at runtime (fail closed) and fails the route-coverage test.
-4. **Role → permission** (static map in `platform/http.ts`): `learner` → `self`; `instructor` → `self`, `staff.read`; `admin` → plus `admin.manage`. Staff permissions require a verified second factor when `THREATREADY_REQUIRE_STAFF_MFA` is on (default in production).
+4. **Role → permission** (static map in `platform/http.ts`): `learner` → `self`; `instructor` → `self`, `staff.read`; `admin` → plus `admin.manage`. Staff permissions require a verified second factor when `THREATREADY_REQUIRE_STAFF_MFA=true`.
 5. **Entitlement** (stub hook for the PaymentPort; everyone is entitled today).
 6. **Validation**: `@ZBody` / `@ZQuery` parse with the Zod schemas from `@threatready/contracts`; failures are `422 {"detail":"Invalid input","errors":[{field,message}]}`.
 7. **Request transaction**: the handler runs inside one database transaction as the restricted role `threatready_app` with `app.user_id`, `app.org_id` and `app.staff` set, so PostgreSQL row-level security applies (`db/context.ts`, migration `0001_rls.sql`).

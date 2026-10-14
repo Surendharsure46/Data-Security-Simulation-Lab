@@ -15,15 +15,20 @@ const bool = z.enum(["true", "false", "1", "0"]).transform((v) => v === "true" |
 const Env = z.object({
   THREATREADY_ENV: z.enum(["development", "test", "production"]).default("development"),
   THREATREADY_ROLE: z.enum(["api", "worker", "all"]).default("all"),
-  THREATREADY_PORT: z.coerce.number().int().default(8000),
-  THREATREADY_HOST: z.string().default("127.0.0.1"),
+  /** Falls back to PORT (set by hosting platforms such as Render), then 8000. */
+  THREATREADY_PORT: z.coerce.number().int().optional(),
+  PORT: z.coerce.number().int().optional(),
+  /** Defaults to 0.0.0.0 in production (containers, PaaS) and 127.0.0.1 otherwise. */
+  THREATREADY_HOST: z.string().optional(),
   /** postgres://… for PostgreSQL (RDS in production); pglite://<dir> or pglite://memory for the embedded database. */
   THREATREADY_DATABASE_URL: z.string().default(`pglite://${join(API_DIR, "var", "pgdata").replace(/\\/g, "/")}`),
   THREATREADY_LAB_DATA_DIR: z.string().default(join(API_DIR, "var", "labs")),
   THREATREADY_FRONTEND_DIST: z.string().default(join(REPO_DIR, "apps", "web", "dist")),
   /** Public origin of the app (cookies, Better Auth callbacks, CSRF origin check). */
-  THREATREADY_PUBLIC_URL: z.string().default("http://localhost:5173"),
+  THREATREADY_PUBLIC_URL: z.string().optional(),
   THREATREADY_TRUSTED_ORIGINS: z.string().default("http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"),
+  /** Set automatically by Render; used as the public URL when THREATREADY_PUBLIC_URL is not set. */
+  RENDER_EXTERNAL_URL: z.string().optional(),
   THREATREADY_AUTH_SECRET: z.string().min(32).optional(),
   THREATREADY_ALLOW_SELF_REGISTRATION: bool.default(true),
   THREATREADY_REQUIRE_EMAIL_VERIFICATION: bool.optional(),
@@ -34,6 +39,8 @@ const Env = z.object({
   THREATREADY_BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
   THREATREADY_DEFAULT_ORGANIZATION: z.string().default("Threatready Training Org"),
   THREATREADY_SENTRY_DSN: z.string().optional(),
+  /** Apply pending migrations when the process starts. Turn off where a separate migrate step runs (ECS migrate task). */
+  THREATREADY_MIGRATE_ON_START: bool.default(true),
   THREATREADY_STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   THREATREADY_MAIL_DRIVER: z.enum(["console", "ses"]).default("console"),
   THREATREADY_LLM_DRIVER: z.enum(["none", "anthropic"]).default("none"),
@@ -44,6 +51,7 @@ export type Config = ReturnType<typeof buildConfig>;
 function buildConfig(env: Record<string, string | undefined>) {
   const e = Env.parse(env);
   const production = e.THREATREADY_ENV === "production";
+  const publicUrl = (e.THREATREADY_PUBLIC_URL ?? e.RENDER_EXTERNAL_URL ?? "http://localhost:5173").replace(/\/$/, "");
   if (production && !e.THREATREADY_AUTH_SECRET) throw new Error("THREATREADY_AUTH_SECRET (32+ characters) is required in production");
   if (e.THREATREADY_BOOTSTRAP_ADMIN_PASSWORD !== undefined && e.THREATREADY_BOOTSTRAP_ADMIN_PASSWORD.length < 12) {
     throw new Error("THREATREADY_BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters");
@@ -52,24 +60,27 @@ function buildConfig(env: Record<string, string | undefined>) {
     env: e.THREATREADY_ENV,
     production,
     role: e.THREATREADY_ROLE,
-    port: e.THREATREADY_PORT,
-    host: e.THREATREADY_HOST,
+    port: e.THREATREADY_PORT ?? e.PORT ?? 8000,
+    host: e.THREATREADY_HOST ?? (production ? "0.0.0.0" : "127.0.0.1"),
     databaseUrl: e.THREATREADY_DATABASE_URL,
     labDataDir: e.THREATREADY_LAB_DATA_DIR,
     frontendDist: e.THREATREADY_FRONTEND_DIST,
-    publicUrl: e.THREATREADY_PUBLIC_URL,
-    trustedOrigins: e.THREATREADY_TRUSTED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean),
+    publicUrl,
+    trustedOrigins: [...new Set([...e.THREATREADY_TRUSTED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean), new URL(publicUrl).origin])],
     // Development secret is only for local use; production refuses to start without a real one.
     authSecret: e.THREATREADY_AUTH_SECRET ?? "threatready-development-secret-not-for-production-use",
     allowSelfRegistration: e.THREATREADY_ALLOW_SELF_REGISTRATION,
-    requireEmailVerification: e.THREATREADY_REQUIRE_EMAIL_VERIFICATION ?? production,
-    requireStaffMfa: e.THREATREADY_REQUIRE_STAFF_MFA ?? production,
+    // Verification needs a mail adapter that really delivers; the console adapter cannot, so it is off unless mail is configured.
+    requireEmailVerification: e.THREATREADY_REQUIRE_EMAIL_VERIFICATION ?? (production && e.THREATREADY_MAIL_DRIVER !== "console"),
+    // Opt-in until the web app has a two-factor enrolment screen (otherwise staff could not reach staff pages).
+    requireStaffMfa: e.THREATREADY_REQUIRE_STAFF_MFA ?? false,
     loginRateLimitPerMinute: e.THREATREADY_LOGIN_RATE_LIMIT_PER_MINUTE,
     apiRateLimitPerMinute: e.THREATREADY_API_RATE_LIMIT_PER_MINUTE,
     bootstrapAdminEmail: e.THREATREADY_BOOTSTRAP_ADMIN_EMAIL.toLowerCase(),
     bootstrapAdminPassword: e.THREATREADY_BOOTSTRAP_ADMIN_PASSWORD,
     defaultOrganization: e.THREATREADY_DEFAULT_ORGANIZATION,
     sentryDsn: e.THREATREADY_SENTRY_DSN,
+    migrateOnStart: e.THREATREADY_MIGRATE_ON_START,
     storageDriver: e.THREATREADY_STORAGE_DRIVER,
     mailDriver: e.THREATREADY_MAIL_DRIVER,
     llmDriver: e.THREATREADY_LLM_DRIVER,

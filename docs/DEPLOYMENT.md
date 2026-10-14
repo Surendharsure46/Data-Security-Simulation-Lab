@@ -40,7 +40,7 @@ npm run db:migrate                     # build + apply migrations (+ bootstrap a
 npm run db:generate                    # after changing apps/api/src/db/schema.ts: writes a new SQL migration
 ```
 
-Outside production the API applies pending migrations at start-up. In production they run as the one-off `threatready-migrate` ECS task before services roll. CI fails if the schema changed without a committed migration. Row-level security policies live in the hand-written migration `0001_rls.sql`.
+The API applies pending migrations at start-up unless `THREATREADY_MIGRATE_ON_START=false`. On AWS it is off and the one-off `threatready-migrate` ECS task runs them before services roll. CI fails if the schema changed without a committed migration. Row-level security policies live in the hand-written migration `0001_rls.sql`.
 
 ### Accounts
 
@@ -56,6 +56,26 @@ powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 ```
 
 Builds everything, migrates and serves web app + API on port 8000 (role `all`: API and worker in one process). Use PostgreSQL (`THREATREADY_DATABASE_URL=postgres://…`), set `THREATREADY_ENV=production` and a real `THREATREADY_AUTH_SECRET`, and put TLS in front.
+
+## Render (or any Node.js host)
+
+| Setting | Value |
+|---|---|
+| Build Command | `npm ci && npm run build` |
+| Start Command | `npm start` |
+| Node version | 26.10 (from `.node-version` / `engines`) |
+| Health check path | `/api/health` |
+
+Environment variables:
+
+| Variable | Value |
+|---|---|
+| `THREATREADY_ENV` | `production` |
+| `THREATREADY_AUTH_SECRET` | 32+ random characters (required; Render's "Generate" button works) |
+| `THREATREADY_DATABASE_URL` | the Internal Database URL of a Render PostgreSQL instance. Without it the embedded database lives on the service's disk and is lost on every deploy. |
+| `THREATREADY_BOOTSTRAP_ADMIN_EMAIL` / `..._PASSWORD` | optional admin account |
+
+Render's `PORT` and `RENDER_EXTERNAL_URL` are picked up automatically (listening address, cookie origin and trusted origin). Set `THREATREADY_PUBLIC_URL` when you use a custom domain. Migrations run at start-up (`THREATREADY_MIGRATE_ON_START`, default `true`). Do not set `NODE_ENV=production` for the build, or `npm ci` skips the build tools.
 
 ## Containers
 
