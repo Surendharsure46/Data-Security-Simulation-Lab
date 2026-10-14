@@ -2,10 +2,10 @@
 param([switch]$E2E)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-Push-Location "$root\backend"; .\.venv\Scripts\python.exe -m pytest; if ($LASTEXITCODE) { exit 1 }; Pop-Location
-Push-Location "$root\frontend"
+Push-Location $root
+npm run check:boundaries; if ($LASTEXITCODE) { exit 1 }
 npm run typecheck; if ($LASTEXITCODE) { exit 1 }
 npm test; if ($LASTEXITCODE) { exit 1 }
-if ($E2E) { npx playwright test; if ($LASTEXITCODE) { exit 1 } }
+if ($E2E) { npm run e2e; if ($LASTEXITCODE) { exit 1 } }
 Pop-Location
 Write-Host "All requested test suites passed." -ForegroundColor Green

@@ -4,8 +4,8 @@ The registry is served by `GET /api/integrations` and shown on the **Real-Tool P
 
 | Connector | Mode | Status | Mechanism | Permissions | Tested | Limitations / cleanup |
 |---|---|---|---|---|---|---|
-| Local cryptography | REAL_LAB | Implemented | Python `cryptography` 44.0.3 (AESGCM, Scrypt, RFC 3394 key wrap), `hashlib`/`hmac` | Write access to the user's lab folder only | Yes (`tests/test_labs.py`) | Lab keyring is a file for teaching, not a KMS. Cleanup: `python -m app.cli reset-data --yes` or delete `var/labs/user-*/crypto`. |
-| SQLite lab database | REAL_LAB | Implemented | Python `sqlite3`: `set_authorizer`, `set_progress_handler`, online backup API | Lab folder only | Yes | SQLite has no native roles; enforcement is the authorizer callback, not GRANT/REVOKE. Reset from the lab page. |
+| Local cryptography | REAL_LAB | Implemented | Node.js `crypto` / OpenSSL (aes-256-gcm, scrypt, id-aes256-wrap RFC 3394, SHA-256, HMAC) | Write access to the user's lab folder only | Yes (`apps/api/test/labs.test.ts`) | Lab keyring is a file for teaching, not a KMS. Cleanup: delete `apps/api/var/labs/user-*/crypto`; orphaned folders are removed by the worker's daily cleanup job. |
+| SQLite lab database | REAL_LAB | Implemented | `node:sqlite`: `setAuthorizer`, online backup API; each statement runs in a child process killed after 2 s | Lab folder only | Yes | SQLite has no native roles; enforcement is the authorizer callback, not GRANT/REVOKE. Reset from the lab page. |
 | Normalised event export | SIMULATED | Implemented | `GET /api/sessions/{id}/export/events` (JSON Lines, common schema) | Session read access; admin can disable | Yes | Export only; events stay labelled SIMULATED. |
 | PostgreSQL lab | REAL_LAB | Not implemented | — | — | No | Guided procedure only on the Real-Tool Practice page. |
 | Wireshark | REAL_LAB | Guide only | Manual, outside the platform | Capture only authorised traffic | No | The in-app TLS exercise uses a simulated handshake summary. |

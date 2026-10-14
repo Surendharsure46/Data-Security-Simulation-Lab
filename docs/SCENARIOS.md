@@ -2,7 +2,7 @@
 
 ## Reference scenario: Unauthorized Customer-Data Export (`customer-data-export` v1.0.0)
 
-**Level** L1 Practitioner · **Modules** M01, M02, M07, M08 · **~75 min** · **Mode** SIMULATED · Definition: `backend/app/content/scenarios/customer-data-export.json`
+**Level** L1 Practitioner · **Modules** M01, M02, M07, M08 · **~75 min** · **Mode** SIMULATED · Definition: `apps/api/src/content/scenarios/customer-data-export.json`
 
 ### Environment (Kestrel Ridge Financial, fictional)
 

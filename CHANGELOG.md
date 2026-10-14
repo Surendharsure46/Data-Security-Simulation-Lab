@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.0 — 2026-10-14 (move to the architecture-document tech stack)
+
+### Changed
+- **Backend rewritten in TypeScript on NestJS** (`apps/api`), replacing the Python/FastAPI backend, with the same routes and JSON shapes. Every domain service (simulation, discovery, policies, investigation, assessment, reports, journey, curriculum) and lab was ported; domain code is framework-free, which a CI boundary check enforces.
+- **PostgreSQL + Drizzle ORM** replace SQLite + SQLAlchemy/Alembic. Migrations: `0000_init`, `0001_rls` (row-level security on every user- and session-owned table, with a restricted `threatready_app` role per request transaction) and `0002_two_factor_lockout`. Embedded PGlite is used locally and in tests; RDS PostgreSQL 17 in production.
+- **Better Auth** replaces the home-grown PBKDF2 + bearer-token auth: email accounts, scrypt, httpOnly cookie sessions, optional TOTP two-factor (required for staff permissions in production) and email verification through the MailPort. Registration and login stay at `/api/auth/*`; Better Auth's own endpoints are at `/api/identity`.
+- Authorization fails closed: every route declares `@Permission` or `@Public`, roles map to permissions statically, objects outside the caller's scope return 404, and PostgreSQL RLS is the backstop. State-changing requests are checked against trusted origins (CSRF).
+- Request validation uses Zod schemas from the new `packages/contracts`, shared with the web app; OpenAPI 3.1 is generated at `/api/openapi.json` outside production.
+- REAL_LAB crypto uses Node's `crypto` (AES-256-GCM, scrypt, RFC 3394 key wrap). The database lab uses `node:sqlite` with the authorizer, and each learner statement runs in a child process that is killed after 2 s.
+- Web app: cookie sessions (no token in browser storage), email sign-in with the TOTP step, a verification notice; moved to `apps/web`.
+- Tests ported to Vitest + supertest, with new route-coverage, cross-user 404, RLS, CSRF, verification, staff-MFA, runaway-query and worker tests; Playwright journey updated.
+
+### Added
+- Worker role with pg-boss on the same database (daily lab-file cleanup); ports for LLM, storage, mail and payments with development adapters; operations CLI (`migrate`, `validate-content`, `create-user`, `cleanup-labs`).
+- Infrastructure as files: a multi-stage ARM64 Dockerfile (api/worker roles), a compose stack with PostgreSQL, OpenTofu modules (network, RDS, S3, ECS Fargate api/worker/migrate, ALB, EFS, Cloudflare, GitHub OIDC), and CI and OIDC deploy workflows. Nothing was provisioned.
+
+### Removed
+- The Python backend (`backend/`). A copy of the 0.3.1 tree is in `threatready-backup-before-nestjs-2026-10-14.zip` next to the project folder. Existing SQLite accounts and data are not migrated.
+
+### Fixed during verification
+- Nest treated Zod schemas passed to parameter decorators as pipes (they have a `transform` method); schemas are now wrapped.
+- A runaway cross join kept its SQLite lock in a worker thread; statements now run in a killable child process.
+- pg-boss installs its schema with multi-statement scripts, which PGlite's `query()` rejects; parameterless scripts now go through `exec()`.
+- Prototype keys (`constructor`) could pass "known key" checks on content lookups; lookups use `Object.hasOwn`.
+
 ## 0.3.1 — 2026-10-14 (level-gated tools and new palette)
 
 ### Changed

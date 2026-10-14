@@ -4,73 +4,110 @@
 
 | Component | Version used for verification | Notes |
 |---|---|---|
-| Windows | 11 Pro 22631 | Linux/macOS work with equivalent commands (`.venv/bin/python`). |
-| Python | 3.11.x (CPython) | 3.8 is **not** supported. The `py` launcher is used by the scripts. |
-| Node.js / npm | Node 26.10, npm 11.19 | Node 20 LTS or newer expected to work. |
-| RAM | < 500 MB for backend + Vite dev server | Suitable for an 8 GB laptop. |
-| Docker | not required | Dockerfile/compose provided but **untested**. |
+| Node.js / npm | Node 26.10, npm 11 | Required: the database lab uses `node:sqlite` with `setAuthorizer`. No Python is needed any more. |
+| PostgreSQL | 17 in production (RDS); embedded PGlite 0.5 locally and in tests | Same migrations on both. |
+| Docker | optional | Image and compose file are provided; Docker was not installed on the build machine, so they are built in CI only. |
+| OpenTofu | 1.10+ | Only to provision AWS. Nothing has been provisioned. |
 
-Backend Python dependencies are pinned in `backend/requirements.txt` (runtime) and `requirements-dev.txt` (tests). Frontend dependencies are pinned in `frontend/package.json` with a lockfile.
+All dependencies are pinned to exact versions in the workspace `package.json` files with one root `package-lock.json`.
 
-## Local development (recommended)
+## Repository layout
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\setup.ps1   # venv, pip install, validate content, migrate, npm ci
-powershell -ExecutionPolicy Bypass -File scripts\dev.ps1     # backend :8000 + Vite :5173 (proxy /api → :8000)
+```
+packages/contracts   Zod request schemas + policy language (shared by API and web)
+apps/api             NestJS API + worker, Drizzle schema and SQL migrations, Vitest suite
+apps/web             React SPA, Vitest component tests, Playwright e2e
+infra/tofu           OpenTofu: network, RDS, S3, ECS Fargate (api, worker, migrate), ALB, EFS, Cloudflare, GitHub OIDC
+.github/workflows    ci.yml (verify, e2e, PostgreSQL, image, infra validate) and deploy.yml (OIDC deploy)
+scripts/             Windows setup/dev/test/build scripts and the module-boundary check
 ```
 
-Configuration is read from environment variables prefixed `THREATREADY_` or from `.env` in the repository root or `backend/` (see `.env.example`). Relative SQLite paths are resolved from the backend working directory.
-
-### Database initialisation and migrations
+## Local development
 
 ```powershell
-cd backend
-.\.venv\Scripts\python.exe -m app.cli init-db          # alembic upgrade head + default organisation (+ admin if configured)
-.\.venv\Scripts\python.exe -m alembic revision --autogenerate -m "describe change"   # after model changes
-.\.venv\Scripts\python.exe -m alembic upgrade head
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1   # npm ci, build, validate content, migrate
+powershell -ExecutionPolicy Bypass -File scripts\dev.ps1     # API :8000 + Vite :5173 (proxy /api -> :8000)
 ```
 
-Synthetic training data is not seeded globally: each scenario session provisions its own copy of the fictional company from `app/content/company.py`, and labs create their data on first use.
+Without the scripts: `npm ci`, then `npm run dev` (builds and starts the API with the embedded database in `apps/api/var/pgdata`) and `npm run dev:web` in a second terminal.
+
+Configuration comes from `THREATREADY_*` environment variables or a `.env` file in the repository root or `apps/api` (see `.env.example`). The API refuses to start in production without `THREATREADY_AUTH_SECRET`.
+
+### Database and migrations
+
+```powershell
+npm run db:migrate                     # build + apply migrations (+ bootstrap admin if configured)
+npm run db:generate                    # after changing apps/api/src/db/schema.ts: writes a new SQL migration
+```
+
+Outside production the API applies pending migrations at start-up. In production they run as the one-off `threatready-migrate` ECS task before services roll. CI fails if the schema changed without a committed migration. Row-level security policies live in the hand-written migration `0001_rls.sql`.
 
 ### Accounts
 
-- Learners self-register (disable with `THREATREADY_ALLOW_SELF_REGISTRATION=false`).
-- Admin: set `THREATREADY_BOOTSTRAP_ADMIN_PASSWORD` before `init-db`, or `python -m app.cli create-user alice --role admin` (prompts for the password).
+- Learners self-register with an email address (disable with `THREATREADY_ALLOW_SELF_REGISTRATION=false`).
+- Bootstrap admin: set `THREATREADY_BOOTSTRAP_ADMIN_EMAIL` / `THREATREADY_BOOTSTRAP_ADMIN_PASSWORD` (12+ characters).
+- Any role: `THREATREADY_NEW_USER_PASSWORD=... node apps/api/dist/cli.js create-user alice@example.com instructor "Alice"` (the password is never a command-line argument).
+- Accounts from the previous Python release are **not** migrated: usernames became email addresses and PBKDF2 hashes are not compatible with Better Auth. Learners re-register.
 
-## Single-process “production” mode
+## Single-process production mode (one machine)
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 ```
 
-Builds `frontend/dist`, sets `THREATREADY_ENV=production` (hides `/api/docs`) and serves UI + API from `http://127.0.0.1:8000`. For anything beyond a single trusted machine put a TLS-terminating reverse proxy in front, bind uvicorn to localhost, and run one worker process (login rate limiting is in-memory).
+Builds everything, migrates and serves web app + API on port 8000 (role `all`: API and worker in one process). Use PostgreSQL (`THREATREADY_DATABASE_URL=postgres://…`), set `THREATREADY_ENV=production` and a real `THREATREADY_AUTH_SECRET`, and put TLS in front.
 
-## Containers (optional, untested)
+## Containers
 
 ```
-docker compose up --build
+THREATREADY_AUTH_SECRET=<64 hex chars> docker compose up --build
 ```
 
-The image builds the UI, runs `init-db` at start and stores the database and lab files in the `threatready-data` volume. Docker was not available on the build machine, so this path has not been executed.
+Starts PostgreSQL 17, runs migrations once, then the `api` (port 8000) and `worker` services from the same image.
+
+## AWS (OpenTofu, not provisioned)
+
+`infra/tofu` describes the target environment from the architecture decision document:
+
+| Module | Resources |
+|---|---|
+| `network` | VPC, two public subnets (ALB, Fargate tasks), two private subnets with no internet route (RDS, EFS), VPC flow logs for rejected traffic. No NAT gateway. |
+| `database` | RDS PostgreSQL 17 (gp3, encrypted, `rds.force_ssl`, 14-day backups, Performance Insights, deletion protection in production). RDS manages the master password in Secrets Manager; the `database-url` secret is derived from it. |
+| `storage` | Private, versioned, KMS-encrypted S3 bucket with TLS-only policy (for the S3 StoragePort adapter). |
+| `app` | ECR (immutable tags, scan on push), ECS cluster, Fargate ARM64 task definitions `api`, `worker`, `migrate`, the `api` service behind an ALB (TLS 1.3 policy, `/api/health` checks, circuit-breaker rollback), the `worker` service, EFS for lab files shared by all api tasks, generated auth secret, least-privilege task roles. |
+| `edge` | Cloudflare proxied DNS record, strict TLS, always-HTTPS, ACM certificate validated through Cloudflare DNS; the ALB accepts only Cloudflare IP ranges. |
+| `github_oidc` | GitHub OIDC provider and a deploy role limited to the `production` environment of one repository. |
+
+First apply:
+
+```
+cd infra/tofu
+cp backend.hcl.example backend.hcl            # state bucket
+cp production.tfvars.example production.tfvars
+tofu init -backend-config=backend.hcl
+tofu apply -var-file=production.tfvars
+```
+
+Then copy the outputs (`AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `ECR_REPOSITORY`, `ECS_CLUSTER`, `ECS_NETWORK_CONFIGURATION`) into GitHub repository variables and create a `production` environment. `deploy.yml` builds the ARM64 image, pushes it, registers new task definitions, runs the migrate task and rolls both services. The task definitions start with a `:bootstrap` image tag, so the services stay unhealthy until the first deploy.
+
+Known limits of the infrastructure code: it has not been planned or applied against a real account; `tofu validate` runs in CI. The S3 and SES adapters are stubs, so the app keeps using local storage (EFS) and console mail until they are implemented.
 
 ## Backup and recovery
 
-Stop the server, then copy `backend/var/threatready.db` (and `-wal`/`-shm` files if present) and `backend/var/labs/`. Restore by copying them back. Lab files are disposable and can be regenerated.
+- Production: RDS automated backups (14 days, point-in-time restore) and EFS. Lab files are disposable.
+- Local: stop the API, copy `apps/api/var/pgdata` and `apps/api/var/labs`.
 
 ## Safe reset
 
-- One scenario: **Simulation Workspace → Reset** (keeps submitted attempts).
-- One lab: the lab page's **Reset** button.
-- Everything (development only): stop the server, `python -m app.cli reset-data --yes`, then `python -m app.cli init-db`.
+- One scenario: **Simulation Workspace → Reset** (keeps submitted attempts). One lab: the lab page's **Reset** button.
+- Everything (local only): stop the API and delete `apps/api/var`.
 
 ## Troubleshooting (Windows)
 
 | Symptom | Fix |
 |---|---|
-| `py -3.11` not found | Install Python 3.11 from python.org with the “py launcher” option, reopen PowerShell. |
-| Script blocked by execution policy | Use `powershell -ExecutionPolicy Bypass -File …` as shown. |
-| Port 5173 already in use | `$env:PORT=5180; npm run dev` (Vite reads `PORT`). |
-| UI shows “Cannot reach the Threatready server” | Start the backend on port 8000, or set `THREATREADY_BACKEND` for Vite's proxy. |
-| `npm ci` warns that esbuild install scripts were not run | Harmless with npm 11: the platform binary ships as `@esbuild/win32-x64`. |
+| UI shows "Cannot reach the Threatready server" | Start the API on port 8000, or point Vite's proxy elsewhere with `THREATREADY_BACKEND`. The first start migrates the embedded database and takes a little longer. |
+| `node:sqlite` errors or `setAuthorizer is not a function` | Upgrade Node.js to 26.10 or newer. |
+| Port 5173 already in use | `$env:PORT=5180; npm run dev:web`. |
 | Playwright cannot find a browser | `npx playwright install chromium`, or use installed Edge: `$env:PW_CHANNEL="msedge"`. |
-| `database is locked` | Only one backend process should use the SQLite file; stop duplicates. |
+| "Cross-origin request refused" | Add the page's origin to `THREATREADY_TRUSTED_ORIGINS`. |

@@ -1,0 +1,25 @@
+{
+  "name": "threatready",
+  "private": true,
+  "version": "0.4.0",
+  "description": "Threatready data security training platform: NestJS API, React SPA and shared contracts (npm workspaces).",
+  "workspaces": [
+    "packages/contracts",
+    "apps/api",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=26.10"
+  },
+  "scripts": {
+    "build": "npm run build -w @threatready/contracts && npm run build -w @threatready/api && npm run build -w threatready-web",
+    "dev": "npm run build -w @threatready/contracts && npm run dev -w @threatready/api",
+    "dev:web": "npm run dev -w threatready-web",
+    "typecheck": "npm run build -w @threatready/contracts && npm run typecheck -w @threatready/api && npm run typecheck -w threatready-web",
+    "test": "npm run build -w @threatready/contracts && npm run test -w @threatready/api && npm run test -w threatready-web",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "db:generate": "npm run db:generate -w @threatready/api",
+    "db:migrate": "npm run db:migrate -w @threatready/api",
+    "e2e": "npm run e2e -w threatready-web"
+  }
+}

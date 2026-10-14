@@ -1,18 +1,18 @@
-# Python
-backend/.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-# Local data (SQLite database, lab files, e2e state)
-backend/var/
 # Node
-frontend/node_modules/
-frontend/dist/
-frontend/test-results/
-frontend/playwright-report/
+node_modules/
+dist/
+apps/web/test-results/
+apps/web/playwright-report/
+# Local data (embedded PostgreSQL, lab files, e2e state)
+apps/api/var/
+# OpenTofu
+infra/tofu/.terraform/
+infra/tofu/*.tfstate*
+infra/tofu/backend.hcl
+infra/tofu/*.tfvars
 # Secrets
 .env
-backend/.env
+apps/api/.env
 *.pem
 *.key
 .claude/

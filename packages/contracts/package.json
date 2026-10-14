@@ -1,0 +1,25 @@
+{
+  "name": "@threatready/contracts",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Zod request schemas and shared types used by the API (validation + OpenAPI) and the web app.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

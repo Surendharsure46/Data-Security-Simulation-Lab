@@ -8,12 +8,12 @@ You need a web browser and the address your administrator gave you (on a local i
 
 1. Open the address in Chrome or Edge.
 2. Click **Create learner account** the first time. Next time, use **Sign in**.
-3. Enter a **username**. Your email address works.
+3. Enter your **email address**, a display name and a password.
 4. Enter a **display name**. This is the name shown on screen.
 5. Choose a **password** of at least 10 characters, with an uppercase letter, a lowercase letter and a digit.
 6. Click **Create account**. You land on the **Overview Dashboard**.
 
-If the page says *Cannot reach the Threatready server*, the backend is not running. See **Troubleshooting** at the end.
+If the page says *Cannot reach the Threatready server*, the API is not running. See **Troubleshooting** at the end.
 
 ## The screen at a glance
 
@@ -161,7 +161,7 @@ Scores are a platform result for this exercise. They are not a professional cert
 
 | Problem | What to do |
 | --- | --- |
-| *Cannot reach the Threatready server* | The backend is not running. Start it (see the README) or ask your administrator. |
+| *Cannot reach the Threatready server* | The API is not running. Start it (see the README) or ask your administrator. |
 | *Invalid input* when creating an account | Username: letters, digits, `. _ - + @` (an email works). Password: 10+ characters with upper- and lower-case letters and a digit. |
 | Buttons are greyed out | The simulation is paused or submitted. Open **Simulation Workspace** and click **Resume**, or **Reset** to start a new attempt. |
 | A page says *No active scenario workspace* | Start or pick a simulation in **Simulation Workspace**, or choose one in the **Active workspace** box at the top. |

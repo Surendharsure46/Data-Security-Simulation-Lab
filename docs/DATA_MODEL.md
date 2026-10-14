@@ -1,16 +1,15 @@
 # Data model
 
-Defined in `backend/app/models.py`; schema created by Alembic migrations `0001_initial_schema`, `0002_career_and_missions` and `0003_levels_and_roles`. A test (`tests/test_migrations.py`) asserts that the migrations produce exactly the ORM schema.
+PostgreSQL schema defined with Drizzle in `apps/api/src/db/schema.ts`; SQL migrations in `apps/api/migrations` (`0000_init` schema, `0001_rls` row-level security, `0002_two_factor_lockout`). CI regenerates migrations and fails on drift; `apps/api/test/migrations-and-worker.test.ts` checks that every owned table has RLS enabled. Property names are snake_case so API responses keep their documented field names; ids of users are Better Auth text ids, all other ids are integers.
 
 ## Platform entities
 
 | Entity | Purpose |
 |---|---|
 | `Organization` | Training tenant. Users and sessions belong to one organisation; staff can only see their own organisation. |
-| `User` | Platform account (`learner`, `instructor`, `admin`). PBKDF2-SHA256 password hash. |
-| `AuthToken` | SHA-256 hash of an opaque bearer token, expiry, revocation flag. |
+| `user`, `account`, `session`, `verification`, `two_factor` | Better Auth identity tables. `user` adds `role` (`learner`, `instructor`, `admin`), `org_id` and `is_active`; `account.password` holds the scrypt hash; `session` holds opaque session tokens (httpOnly cookie); `two_factor` holds TOTP secrets and backup codes. |
 | `AuditRecord` | Platform audit trail (logins, session starts/resets, submissions, role changes, integration toggles). |
-| `IntegrationConfig` / `IntegrationRun` | Per-organisation connector switches (no secrets stored) and provenance of connector runs. |
+| `IntegrationConfig` | Per-organisation connector switches (no secrets stored) and provenance of connector runs. |
 
 ## Scenario session entities (all carry `session_id`)
 
@@ -71,3 +70,11 @@ REAL_LAB files (encrypted files, lab keyring, lab SQLite database and backups) l
 | `extension` | source-specific fields preserved as-is (device, IP, access path, grant, record count, decision trace, detector types …) |
 
 The internal column `step_key` maps timeline events to scenario steps for grading and is never serialized.
+
+## Row-level security (migration 0001_rls)
+
+API requests run inside one transaction as the NOLOGIN role `threatready_app` with `app.user_id`, `app.org_id` and `app.staff` set
+for that transaction. Policies on every user-owned table (`user_id = app_user_id()`, or staff in the same organisation) and every
+session-owned table (`session_id IN (SELECT id FROM scenario_sessions)`) make a missing `WHERE` clause return nothing instead of
+another learner's rows. Writes are allowed only to the caller's own rows. Migrations and the worker run as the table owner.
+The application's own checks (404 for objects outside the caller's scope) remain the primary control; RLS is the backstop.

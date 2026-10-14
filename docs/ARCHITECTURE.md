@@ -1,71 +1,86 @@
 # Architecture
 
-Threatready is a **modular monolith**: one FastAPI process with clear internal module boundaries, a SQLite database (via SQLAlchemy + Alembic) and a React single-page application. In production mode the backend also serves the built UI, so a single process on port 8000 is the whole application.
+Threatready is a **modular monolith in TypeScript**: one NestJS application (`apps/api`) with clear internal boundaries, PostgreSQL through Drizzle ORM, Better Auth for identity, and a React single-page application (`apps/web`). Request schemas live in a shared package (`packages/contracts`) used by both. In production the API also serves the built web app, so one container image is the whole application. The same image runs as two ECS services: `api` and `worker`.
 
 ```
-Browser (React SPA)
-   │  JSON over HTTP, Authorization: Bearer <token>
+Browser (React SPA, apps/web)
+   │  JSON over HTTPS, httpOnly session cookie (SameSite=Lax), same origin
    ▼
-FastAPI app (app/main.py) ── security headers, safe error handlers
-   ├── routers/            HTTP layer: validation (Pydantic), authorization, serialization
-   │     auth · career · sessions · environment · policies(+engineering) · investigations · curriculum · labs · admin
-   ├── services/           domain logic, no HTTP
-   │     career           onboarding, interactive demo, missions, required criteria, skill gaps, skills, level unlock
-   │     session_lifecycle  scenario-session creation and submission shared by the scenario API and missions
-   │     detection        sensitive-data detectors + validators + masking
-   │     policy_engine    rule language (Pydantic), evaluator, precedence, explanations, diff
-   │     scenario_defs    scenario schema, referential validation, public (answer-free) view
-   │     simulation       environment provisioning, access control, activity execution, events, alerts, timeline runs
-   │     discovery        scans, classification register, rules, access review
-   │     policies         versioning, dry runs, labelled test suite, metrics, change records
-   │     investigation    correlation, risk model, remediation + verification
-   │     assessment       task progress checks, rubric checks, critical conditions, scoring, digest
-   │     reports          report builders + Markdown/HTML/JSON/CSV renderers
-   ├── labs/               encryption (REAL_LAB), dblab (REAL_LAB), simlabs (cloud, privacy, AI)
-   ├── content/            company.py (synthetic enterprise), career.py (onboarding, levels, missions, skills), curriculum.py, scenarios/*.json
-   └── models.py / db.py   SQLAlchemy 2 models, engine/session
+NestJS API (apps/api, THREATREADY_ROLE=api)
+   ├── server.ts            security headers + CSP, Origin check for state-changing requests, Better Auth handler at /api/identity,
+   │                        JSON body limit, OpenAPI at /api/openapi.json (non-production), static web app + SPA fallback
+   ├── platform/            cross-cutting HTTP layer
+   │     auth.ts            Better Auth (Drizzle adapter, email + password, scrypt, sessions, TOTP two-factor), principal resolution
+   │     http.ts            guard chain, @Permission/@Public, Zod request validation, request transaction, error filter
+   │     openapi.ts         OpenAPI 3.1 generated from route metadata and the Zod schemas
+   ├── modules/             controllers only (HTTP shape, no business rules)
+   │     auth · journey (career + curriculum) · sessions · environment · policies (+engineering) · investigations · labs · admin · health
+   ├── domain/              business logic, framework-free (enforced by scripts/check-boundaries.mjs)
+   │     career, curriculum, session-lifecycle, detection, policy-engine, scenario-defs, simulation, discovery, policies,
+   │     investigation, assessment, reports
+   ├── labs/                encryption (REAL_LAB, node:crypto), dblab (REAL_LAB, node:sqlite in a killable child process), simlabs
+   ├── content/             synthetic enterprise (company.ts), career/curriculum JSON, scenario JSON
+   ├── db/                  schema.ts (Drizzle), client.ts (pg or PGlite), uow.ts (unit of work), context.ts (request context + RLS)
+   ├── ports/               LlmPort, StoragePort, MailPort, PaymentPort with development adapters and production stubs
+   └── worker/              pg-boss jobs on the same database (THREATREADY_ROLE=worker)
 ```
+
+## Request lifecycle and authorization chain
+
+Every request passes, in order:
+
+1. **Throttler** (`@nestjs/throttler`, per IP) and, for `/api/auth/login|register`, a per-IP and per-email sliding window.
+2. **Identity**: `AuthGuard` resolves the Better Auth session cookie to a `Principal` (user id, organization, role, staff flag, MFA). Deactivated users resolve to nobody.
+3. **Route policy**: every route declares `@Permission(...)` or `@Public()`. A route with neither is refused at runtime (fail closed) and fails the route-coverage test.
+4. **Role → permission** (static map in `platform/http.ts`): `learner` → `self`; `instructor` → `self`, `staff.read`; `admin` → plus `admin.manage`. Staff permissions require a verified second factor when `THREATREADY_REQUIRE_STAFF_MFA` is on (default in production).
+5. **Entitlement** (stub hook for the PaymentPort; everyone is entitled today).
+6. **Validation**: `@ZBody` / `@ZQuery` parse with the Zod schemas from `@threatready/contracts`; failures are `422 {"detail":"Invalid input","errors":[{field,message}]}`.
+7. **Request transaction**: the handler runs inside one database transaction as the restricted role `threatready_app` with `app.user_id`, `app.org_id` and `app.staff` set, so PostgreSQL row-level security applies (`db/context.ts`, migration `0001_rls.sql`).
+8. **Resource ownership** in domain code: objects outside the caller's scope are **404**, never 403, so ids cannot be enumerated. Staff may read sessions and attempts in their own organization; only owners write.
+
+Errors use one shape: `{"detail": message}`. Domain rules throw `DomainError(message, status)`.
+
+## Data access
+
+Domain services were written against a unit of work (`db/uow.ts`): rows loaded through it are tracked, field assignments are flushed automatically before the next query and at the end of the request. JSON columns are replaced, never mutated in place. Inserts and deletes are immediate. All queries go through the request's transaction (`uow()` / `tx()`), which keeps the embedded database (single connection) deadlock-free.
+
+Databases: `postgres://…` uses node-postgres (RDS in production); `pglite://<dir>` or `pglite://memory` runs PostgreSQL compiled to WebAssembly in-process for local development and the test suite. The same migrations run on both.
+
+## Identity
+
+Better Auth runs in-process; users, accounts (scrypt password hashes), sessions and TOTP secrets are tables in our database. Its own endpoints are mounted at `/api/identity` (session, sign-out, two-factor, password change). Public sign-up through Better Auth is closed; registration and login go through `/api/auth/register` and `/api/auth/login`, which apply the contracts validation, the self-registration policy, throttling and the audit trail, then forward Better Auth's `Set-Cookie`. The browser never sees a credential: the session cookie is httpOnly.
+
+## Background work
+
+The `worker` role starts pg-boss on the same PostgreSQL database (schema `pgboss`; no extra infrastructure). Current job: `maintenance.lab-cleanup` (daily) removes lab folders of deleted users. The API never runs jobs; it only enqueues.
 
 ## Learner workflow layer
 
-The career/mission layer (`services/career.py`, `routers/career.py`, `content/career.py`) sits **on top of** the scenario engine, labs and assessment engine without changing how they grade. It adds public welcome/get-started pages with role choice, Levels 0–5 with fundamentals and knowledge checks, sequential labs per level, a comprehension gate, a mandatory explanation with cited evidence, mission-specific required criteria evaluated on the stored `AssessmentAttempt`, skill gaps and remedial lessons, retries (practice or new variant), skill records, automatic level unlocks with a congratulations popup. The frontend gates the signed-in app behind role choice (`CareerProvider` in `state.tsx`). Node-by-node mapping: [WORKFLOW.md](WORKFLOW.md).
+The journey (`domain/career.ts`, `domain/curriculum.ts`, `modules/journey.controller.ts`, `content/data/career.json`) sits on top of the scenario engine, labs and assessment engine without changing how they grade: public welcome/get-started pages with role choice, Levels 0–5 with fundamentals and knowledge checks, sequential labs, a comprehension gate, explanation with cited evidence, required criteria on the stored assessment attempt, skill gaps with remedial lessons, retries (practice or new variant), skill records and automatic level unlocks. Node-by-node mapping: [WORKFLOW.md](WORKFLOW.md).
 
 ## Key design decisions
 
-1. **Per-session environments.** Starting a scenario provisions a private copy of the synthetic company (identities, groups, assets, grants, destinations, labels, classification rules and baseline policies) keyed by `session_id`. This gives isolation between learners, trivial reset and deterministic replay. A reset deletes the session-scoped rows and re-provisions; submitted `AssessmentAttempt`s are retained.
-2. **Content is data, logic is code.** Scenario JSON is validated by `ScenarioDefinition` (Pydantic, `extra=forbid`) and cross-checked against the environment (every actor, asset, destination, grant and step must exist). Task checks, rubric checks and critical conditions are **names** resolved from fixed server-side registries — scenario content can never execute code.
-3. **One policy engine everywhere.** Live activity, dry-run tests, the labelled test suite, the assessment's defence-in-depth check and the AI prompt gateway all use `policy_engine.evaluate_policy`/`decide`.
-4. **Hidden answers stay on the server.** `public_view()` is the only scenario representation sent to clients. Events and alerts carry an internal `step_key` that is never serialized. There is no score preview before submission.
-5. **Honest provenance.** Every event has `provenance` (`SIMULATED` for all scenario events) and a `kr-sim-*` source system. Lab responses state `REAL_LAB` or `SIMULATED`.
-6. **AI is not used for any decision.** Explanations are deterministic templates (`explain_entry`). No external AI provider is implemented.
+1. **Per-session environments.** Starting a scenario provisions a private copy of the synthetic company keyed by `session_id`: isolation, trivial reset and deterministic replay. Submitted assessment attempts survive resets.
+2. **Content is data, logic is code.** Scenario JSON is validated with Zod and cross-checked against the environment. Task checks, rubric checks and critical conditions are names resolved from fixed server-side registries; content never executes code.
+3. **One policy engine everywhere.** Live activity, dry runs, the labelled test suite, the assessment's defence-in-depth check, the demo lab and the AI prompt gateway all use `evaluatePolicy` / `decide`.
+4. **Hidden answers stay on the server.** `publicView()` is the only scenario representation sent to clients; `step_key` is never serialized; no score preview before submission; knowledge-check answers never leave the server.
+5. **Honest provenance.** Scenario events are `SIMULATED` with `kr-sim-*` sources; labs state `REAL_LAB` or `SIMULATED`.
+6. **No AI in decisions.** Explanations are deterministic templates. The LlmPort exists with a no-op adapter only.
 
 ## Data flow of one simulated activity
 
-`execute_activity` (services/simulation.py):
-
-1. **Identity**: sign-in or account-disabled check → `IDENTITY` event.
-2. **Access control**: `access_path()` resolves direct grant → group grant → data owner; quarantined assets allow only owner/Security → `FILE_ACCESS`/`DATABASE`/`CLOUD_STORAGE` event (ALLOWED/DENIED, with the grant that allowed it).
-3. **Egress blocklist**: blocked external destinations stop the transfer → `PROXY` event BLOCKED.
-4. **Policy evaluation**: content of the asset is scanned live (DLP inspects content at egress, independent of labels); context is built (actor, content, resource, destination, business context, after-hours) → all enabled policies evaluated → `PolicyEvaluation` row with the full trace.
-5. **DLP decision** → `DLP` event (decisive policy and version), then the transfer event (`EMAIL_GATEWAY`/`PROXY`/`ENDPOINT`/`FILE_ACCESS`).
-6. **Detections** → `DETECTION` events for matched detection policies.
-7. **Correlation links**: all events of the transaction relate to each other; earlier events by the same actor on the same resource in the same run are linked explicitly.
-8. **Alerts**: one per matched policy with `alert=true`, referencing the triggering event, all transaction events and the policy version.
+`executeActivity` (`domain/simulation.ts`): identity check → access path (direct grant, group grant, data owner, quarantine exemptions) → egress blocklist → live content scan and context → evaluation of every enabled policy (trace stored) → DLP decision event → transfer event → detection events → correlation links within the transaction and to earlier activity on the same resource → one alert per matched alerting policy.
 
 ## Timeline runs
 
-`run_timeline(mode)` replays the scenario's scripted business day on sim-day *n* for run *n*. `standard` uses the original identities. `validation` substitutes the subject's steps with a **validation clone** that has the subject's *original* role and group memberships, so a replay proves that the control gap is fixed rather than merely that one account was disabled. Each run records the `ScenarioAction` sequence number at which it happened so that the engine can tell whether a replay came after the latest control change.
-
-## Time
-
-All timestamps are stored in UTC (SQLite drops tzinfo; `as_utc` restores it) and rendered as `YYYY-MM-DDTHH:MM:SSZ`. The UI labels every time as UTC. The simulation clock is per session and advances one minute per learner action.
+`runTimeline(mode)` replays the scripted business day on sim-day *n* for run *n*. `validation` substitutes the subject with a **validation clone** that has the subject's original role and groups, so a replay proves the control gap is closed rather than that one account was disabled. Each run records the action sequence number so the engine can tell whether a replay came after the latest control change.
 
 ## Frontend
 
-React 18 + TypeScript + Vite; react-router; no UI framework — a small design system in `src/styles.css` and `src/components/ui.tsx` (tokens, light/dark themes, text-labelled badges, accessible focus, responsive grid). `state.tsx` holds the auth context, the career-profile context (onboarding gate, level, role), the active-session context and a `useLoad` hook. Journey pages: public `pages/public/Welcome.tsx` (`/`) and `GetStarted.tsx` (`/get-started`); signed in, `pages/journey/Journey.tsx` (`/`), `Level.tsx` (`/levels/:n`, lesson reader, knowledge check), `Mission.tsx` (guided lab session / simulation lab), plus the global `LevelUpModal` and first-visit `Tour`. Lab pages accept `embedded`/`focus` props so lab sessions show only the exercises being practised; the former dashboard is `/progress` (keeps data on screen while refreshing). The structured policy editor (`components/PolicyEditor.tsx`) is shared by the DLP Policy Studio and the AI lab; `components/Trace.tsx` renders evaluation traces.
+React 18 + TypeScript + Vite in `apps/web`. `src/api.ts` is a same-origin `fetch` wrapper (cookies are sent automatically; errors surface the server's `detail`). `state.tsx` holds the auth context (probes `/api/auth/me` on load; login supports the TOTP step), the career profile and the active scenario session. `components/AuthForm.tsx` is the shared sign-in / registration form. In development Vite proxies `/api` to the API.
 
 ## Boundaries and non-goals
 
-- No distributed infrastructure, queues or Kubernetes — unnecessary at this scale and on an 8 GB machine.
-- No vendor connectors are implemented; see docs/INTEGRATIONS.md.
-- PostgreSQL is a future option; migrations are generated with `render_as_batch` for SQLite compatibility.
+- `scripts/check-boundaries.mjs` (CI) keeps `domain/`, `labs/` and `content/` free of NestJS/Express and the HTTP layer, keeps `packages/contracts` independent of the apps and stops the web app importing API code.
+- No microservices, no Kubernetes, no message broker: pg-boss on PostgreSQL is enough at this scale.
+- Vendor connectors are not implemented; see [INTEGRATIONS.md](INTEGRATIONS.md).

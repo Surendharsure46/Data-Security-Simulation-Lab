@@ -42,11 +42,11 @@ The standalone tool pages unlock with the level that first uses them, so a begin
 | Level 4 | Privacy & Governance, Cloud Data Security, AI Data Security, Real-Tool Practice |
 | Staff only | Administrator Settings |
 
-Source of truth: `frontend/src/components/toolAccess.tsx` (`TOOLS`, `LevelGate`).
+Source of truth: `apps/web/src/components/toolAccess.tsx` (`TOOLS`, `LevelGate`).
 
 ### Colour palette
 
-White surfaces and text, purple as the primary colour (`#7c3aed` light / `#b56cff` dark), and neon accents: cyan `#2ef2ff`, pink `#ff5ce1`, green `#39ffa8`. The tokens live at the top of `frontend/src/styles.css`.
+White surfaces and text, purple as the primary colour (`#7c3aed` light / `#b56cff` dark), and neon accents: cyan `#2ef2ff`, pink `#ff5ce1`, green `#39ffa8`. The tokens live at the top of `apps/web/src/styles.css`.
 
 ## Levels
 
@@ -65,9 +65,9 @@ The title is the rank plus the chosen role, e.g. *Junior DLP Engineer*. The role
 
 | Concern | Where |
 |---|---|
-| Content: welcome text, platform overview, roles, ranks, levels, knowledge checks, missions, per-exercise instructions, skills | `backend/app/content/career.py` (validated by `validate_career_content()` at start-up, in `app.cli validate-content` and in tests) |
-| Logic: role choice, fundamentals read-tracking, knowledge checks, step sequencing, mission start/retry/submit, assessment branches, automatic level unlock (cascades when earlier work already completes a level), skills | `backend/app/services/career.py` |
-| API | `backend/app/routers/career.py`: `GET /public` (no auth), `GET /profile`, `PUT /role`, `GET /journey`, `GET /levels/{n}`, `POST /levels/{n}/read/{key}`, `POST /levels/{n}/check`, `POST /demo/{scan,classify,transfer}`, `GET /missions/{id}`, `POST /missions/{id}/start`, `GET /attempts/{id}`, `POST /attempts/{id}/{understand,submit,retry}`, `GET /promotion`, `POST /promotion/acknowledge` |
+| Content: welcome text, platform overview, roles, ranks, levels, knowledge checks, missions, per-exercise instructions, skills | `apps/api/src/content/data/career.json` + `career.ts` (validated by `validateCareerContent()` at start-up, in `node dist/cli.js validate-content` and in tests) |
+| Logic: role choice, fundamentals read-tracking, knowledge checks, step sequencing, mission start/retry/submit, assessment branches, automatic level unlock (cascades when earlier work already completes a level), skills | `apps/api/src/domain/career.ts` |
+| API | `apps/api/src/modules/journey.controller.ts`: `GET /public` (no auth), `GET /profile`, `PUT /role`, `GET /journey`, `GET /levels/{n}`, `POST /levels/{n}/read/{key}`, `POST /levels/{n}/check`, `POST /demo/{scan,classify,transfer}`, `GET /missions/{id}`, `POST /missions/{id}/start`, `GET /attempts/{id}`, `POST /attempts/{id}/{understand,submit,retry}`, `GET /promotion`, `POST /promotion/acknowledge` |
 | Data | `LearnerProfile` (role, level, read lessons, demo progress, pending celebration), `MissionAttempt`, `SkillRecord`, knowledge checks as `LabExerciseResult(lab="knowledge", exercise="LEVEL-Ln")`; migrations `0002`, `0003` |
 | Frontend | `pages/public/{Welcome,GetStarted}.tsx`, `pages/journey/{Journey,Level,nav}.tsx`, `pages/Mission.tsx` (lab session + simulation view), `components/{LevelUpModal,Tour,DemoLab}.tsx`, lab pages accept `embedded` / `focus` props |
 

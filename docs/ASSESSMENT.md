@@ -1,6 +1,6 @@
 # Assessment and competency model
 
-Implemented in `backend/app/services/assessment.py`; the rubric itself lives in the scenario JSON. Scores are computed **only on the server**, only on submission, and only from persisted session state. No AI model participates in grading.
+Implemented in `apps/api/src/domain/assessment.ts`; the rubric itself lives in the scenario JSON. Scores are computed **only on the server**, only on submission, and only from persisted session state. No AI model participates in grading.
 
 ## Categories (configurable default weights — not an industry standard)
 

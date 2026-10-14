@@ -1,0 +1,3 @@
+domain             = "app.threatready.example"
+cloudflare_zone_id = "CHANGE-ME"
+github_repository  = "your-org/threatready"

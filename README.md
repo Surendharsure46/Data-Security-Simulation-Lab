@@ -32,15 +32,21 @@ Inside simulation labs, learners work in a private copy of the company. They dis
 | Cloud DSPM lab: exposure model, synthetic audit events, remediation, re-assessment | Implemented | SIMULATED |
 | AI Data Security lab: prompt-gateway DLP, permission-aware retrieval (RAG) tests, AI log retention | Implemented | SIMULATED |
 | Learning paths: L0–L5, 10 modules, 40 lessons, 4 specialist pathways, server-graded knowledge checks | Implemented | — |
-| Auth: local accounts, PBKDF2, hashed bearer tokens, rate-limited login, roles (learner/instructor/admin), audit log | Implemented | — |
+| Auth: Better Auth email accounts (scrypt), httpOnly cookie sessions, optional TOTP two-factor (required for staff in production), email verification, throttled login, roles (learner/instructor/admin), fail-closed route policies, PostgreSQL row-level security, audit log | Implemented | — |
 | Enterprise Capstone (Module 10) | **Planned — not implemented** | — |
-| PostgreSQL lab, Microsoft Purview, Sentinel, AWS, external AI | **Not implemented** (see docs/INTEGRATIONS.md) | — |
+| PostgreSQL lab, Microsoft Purview, Sentinel, AWS connectors, external AI | **Not implemented** (see docs/INTEGRATIONS.md) | — |
+| Ports for LLM, storage (S3), mail (SES) and payments | Interfaces + development adapters; production adapters are stubs | — |
+| AWS infrastructure (OpenTofu), Docker image, CI/CD with OIDC deploy | Files only — not provisioned | — |
 
 See [docs/PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md) for the feature-by-feature status and [CHANGELOG.md](CHANGELOG.md) for history.
 
+## Tech stack
+
+TypeScript end to end, as set out in the architecture decision document: a **NestJS** modular monolith (`apps/api`, roles `api` and `worker`), **PostgreSQL** with **Drizzle ORM** and SQL migrations (row-level security as a backstop), **Better Auth** in-process, **Zod** contracts shared with the **React** app (`packages/contracts`), **pg-boss** background jobs, **Vitest** + supertest and **Playwright** tests, and one container image for **ECS Fargate (ARM64)** behind an ALB and **Cloudflare**, provisioned with **OpenTofu** and deployed by **GitHub Actions** over OIDC. Locally the API uses embedded PostgreSQL (**PGlite**), so no database server or Docker is needed. Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Quick start (Windows, PowerShell)
 
-Prerequisites: **Python 3.11+** (with the `py` launcher) and **Node.js 20+** (tested with Node 26 / npm 11). Docker is optional and not required.
+Prerequisite: **Node.js 26.10+** (npm 11). Nothing else.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
@@ -50,25 +56,17 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
 ```
 
-Open http://localhost:5173, read the welcome page, click **Let’s Get Started**, choose a role and create your account. **My Journey** then shows a **Continue** button for your next step.
+Open http://localhost:5173, read the welcome page, click **Let’s Get Started**, choose a role and create your account with your email address. **My Journey** then shows a **Continue** button for your next step.
 
-Manual equivalent:
-
-```powershell
-cd backend
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python.exe -m app.cli init-db
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
+Manual equivalent (two terminals):
 
 ```powershell
-cd frontend
 npm ci
-npm run dev
+npm run dev        # API on :8000 with the embedded database in apps/api/var/pgdata
+npm run dev:web    # web app on :5173 (proxies /api to :8000)
 ```
 
-To create an administrator, set `THREATREADY_BOOTSTRAP_ADMIN_PASSWORD` (12+ characters) in `.env` before `init-db`, or run `python -m app.cli create-user NAME --role admin`.
+To create an administrator, set `THREATREADY_BOOTSTRAP_ADMIN_EMAIL` and `THREATREADY_BOOTSTRAP_ADMIN_PASSWORD` (12+ characters) in `.env` before starting the API, or run `node apps/api/dist/cli.js create-user EMAIL admin NAME` with the password in `THREATREADY_NEW_USER_PASSWORD`. Accounts from 0.3.x are not carried over (usernames became email addresses).
 
 ## Running the tests
 
@@ -76,7 +74,7 @@ To create an administrator, set `THREATREADY_BOOTSTRAP_ADMIN_PASSWORD` (12+ char
 powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -E2E
 ```
 
-Or individually: `backend> .\.venv\Scripts\python.exe -m pytest` · `frontend> npm run typecheck` · `frontend> npm test` · `frontend> npx playwright test` (first run `npx playwright install chromium`; set `$env:PW_CHANNEL="msedge"` to use the installed Edge instead). Details and the latest results: [docs/TESTING.md](docs/TESTING.md).
+Or individually: `npm run check:boundaries` · `npm run typecheck` · `npm test` (API + web) · `npm run e2e` (first run `npx playwright install chromium`; set `$env:PW_CHANNEL="msedge"` to use the installed Edge instead). Details and the latest results: [docs/TESTING.md](docs/TESTING.md).
 
 ## A first exercise
 
@@ -91,18 +89,21 @@ Or individually: `backend> .\.venv\Scripts\python.exe -m pytest` · `frontend> n
 ## Repository layout
 
 ```
-backend/   FastAPI app (app/), Alembic migrations, pytest suite, scenario content (app/content)
-frontend/  React + TypeScript (Vite), Vitest unit tests, Playwright e2e (e2e/)
-docs/      Workflow, requirements, architecture, data model, scenarios, assessment, integrations, security, testing, deployment
-scripts/   Windows setup/dev/test/build scripts
+packages/contracts   Zod request schemas and the policy language, shared by API and web
+apps/api             NestJS API + worker: domain/, labs/, content/, modules/ (controllers), platform/ (auth, guards), db/ (Drizzle), migrations/, test/
+apps/web             React + TypeScript (Vite), Vitest component tests, Playwright e2e (e2e/)
+infra/tofu           OpenTofu for AWS (network, RDS, S3, ECS Fargate, ALB, EFS, Cloudflare, GitHub OIDC)
+.github/workflows    CI (verify, e2e, PostgreSQL, image, infra) and deploy
+docs/                Workflow, requirements, architecture, data model, scenarios, assessment, integrations, security, testing, deployment
+scripts/             Windows setup/dev/test/build scripts and the module-boundary check
 ```
 
 ## Known limitations
 
 - Single reference scenario (two variants); the multi-stage capstone is not implemented.
-- SQLite only. The configuration accepts other SQLAlchemy URLs but PostgreSQL has not been tested.
-- No vendor integrations; the Docker/Compose files are provided but were **not tested** (Docker was unavailable on the build machine).
-- In-memory login rate limiting assumes a single server process.
+- Production adapters for S3 storage, SES mail, payments and an LLM are stubs; mail is logged to the console, so production email verification needs the SES adapter first.
+- The Docker image, compose file and OpenTofu code have not been run on this machine (no Docker, no AWS account); CI builds the image and validates the infrastructure.
+- Login throttling is per process; put Cloudflare rate limiting in front of several API tasks.
 - Detection metrics describe the labelled synthetic test set only — not production performance.
 - Assessment results are platform outcomes for the tasks assessed, **not professional certification**.
 

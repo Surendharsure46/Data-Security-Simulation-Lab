@@ -1,13 +1,36 @@
-# Optional. UNTESTED in this release (Docker was not available on the build machine).
-# Usage: docker compose up --build   then open http://localhost:8000
+# Local production-like stack: PostgreSQL 17 + the API (serving the web app) + the worker.
+# Usage: THREATREADY_AUTH_SECRET=$(openssl rand -hex 32) docker compose up --build   then open http://localhost:8000
 services:
-  threatready:
-    build: .
-    ports:
-      - "127.0.0.1:8000:8000"
+  db:
+    image: postgres:17.6
     environment:
+      POSTGRES_DB: threatready
+      POSTGRES_USER: threatready
+      POSTGRES_PASSWORD: local-dev-only
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "threatready"], interval: 5s, retries: 10 }
+  migrate:
+    build: .
+    command: ["node", "dist/cli.js", "migrate"]
+    environment: &env
+      THREATREADY_DATABASE_URL: postgres://threatready:local-dev-only@db:5432/threatready
+      THREATREADY_AUTH_SECRET: ${THREATREADY_AUTH_SECRET:?set THREATREADY_AUTH_SECRET (32+ characters)}
+      THREATREADY_PUBLIC_URL: http://localhost:8000
+      THREATREADY_TRUSTED_ORIGINS: http://localhost:8000
       THREATREADY_BOOTSTRAP_ADMIN_PASSWORD: ${THREATREADY_BOOTSTRAP_ADMIN_PASSWORD:-}
-    volumes:
-      - threatready-data:/data
+      THREATREADY_REQUIRE_EMAIL_VERIFICATION: "false"
+    depends_on: { db: { condition: service_healthy } }
+  api:
+    build: .
+    environment: { <<: *env, THREATREADY_ROLE: api }
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: [labs:/data/labs]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+  worker:
+    build: .
+    environment: { <<: *env, THREATREADY_ROLE: worker }
+    volumes: [labs:/data/labs]
+    depends_on: { migrate: { condition: service_completed_successfully } }
 volumes:
-  threatready-data:
+  pgdata:
+  labs:

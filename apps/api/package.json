@@ -1,0 +1,47 @@
+{
+  "name": "@threatready/api",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Threatready API: NestJS modular monolith (api and worker roles), Drizzle ORM on PostgreSQL, Better Auth.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "dev": "npm run build && node --enable-source-maps dist/main.js",
+    "start": "node --enable-source-maps dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "npm run build && node dist/cli.js migrate",
+    "cli": "node dist/cli.js",
+    "test:only": "vitest run"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "9.1.0",
+    "@electric-sql/pglite": "0.5.8",
+    "@nestjs/common": "12.1.1",
+    "@nestjs/core": "12.1.1",
+    "@nestjs/platform-express": "12.1.1",
+    "@nestjs/throttler": "6.7.1",
+    "@sentry/node": "11.1.0",
+    "@threatready/contracts": "0.4.0",
+    "better-auth": "1.7.6",
+    "drizzle-orm": "0.45.3",
+    "express": "5.2.1",
+    "pg": "8.23.0",
+    "pg-boss": "12.35.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "12.1.1",
+    "@types/express": "5.0.6",
+    "@types/node": "24.19.0",
+    "@types/pg": "8.23.1",
+    "@types/supertest": "7.2.1",
+    "drizzle-kit": "0.31.11",
+    "supertest": "7.3.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4"
+  }
+}

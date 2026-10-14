@@ -1,0 +1,56 @@
+# Deploys main to AWS: build the ARM64 image, push to ECR, run migrations as a one-off ECS task, roll the api and worker
+# services. Authenticates with GitHub OIDC (no long-lived AWS keys). Repository variables come from `tofu output`.
+name: deploy
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04-arm
+    environment: production
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push image
+        id: image
+        run: |
+          IMAGE="${{ steps.ecr.outputs.registry }}/${ECR_REPOSITORY}:${GITHUB_SHA}"
+          docker build --platform linux/arm64 -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "uri=$IMAGE" >> "$GITHUB_OUTPUT"
+      - name: Register task definitions with the new image
+        run: |
+          for family in threatready-api threatready-worker threatready-migrate; do
+            aws ecs describe-task-definition --task-definition "$family" --query taskDefinition > td.json
+            jq --arg img "${{ steps.image.outputs.uri }}" '.containerDefinitions[0].image = $img
+              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' td.json > td-new.json
+            aws ecs register-task-definition --cli-input-json file://td-new.json > /dev/null
+          done
+      - name: Run database migrations
+        run: |
+          TASK=$(aws ecs run-task --cluster "$ECS_CLUSTER" --task-definition threatready-migrate --launch-type FARGATE \
+            --network-configuration "${{ vars.ECS_NETWORK_CONFIGURATION }}" --query 'tasks[0].taskArn' --output text)
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK"
+          CODE=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK" --query 'tasks[0].containers[0].exitCode' --output text)
+          test "$CODE" = "0" || { echo "Migration task failed with exit code $CODE"; exit 1; }
+      - name: Roll services
+        run: |
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service threatready-api --task-definition threatready-api > /dev/null
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service threatready-worker --task-definition threatready-worker > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services threatready-api threatready-worker

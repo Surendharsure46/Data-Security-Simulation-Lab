@@ -1,5 +1,11 @@
-backend/.venv
-backend/var
-frontend/node_modules
-frontend/dist
 .git
+.github
+.claude
+**/node_modules
+**/dist
+apps/api/var
+backend
+docs
+infra
+*.zip
+.env
