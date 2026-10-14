@@ -1,23 +1,31 @@
 -- Row-level security backstop (architecture decision L7).
 -- API requests run each transaction as the NOLOGIN role threatready_app with app.user_id / app.org_id / app.staff
--- set per transaction (see src/db/request-context.ts). The table owner (migrations, background worker) is not
+-- set per transaction (see src/db/context.ts). The table owner (migrations, background worker) is not
 -- subject to these policies. Application guards remain the primary authorization layer; these policies make a
 -- missed WHERE clause return nothing instead of another user's rows.
+-- Hosted PostgreSQL (RDS, Render) runs migrations as a non-superuser. Creating the role needs CREATEROLE; switching to it
+-- needs membership, which PostgreSQL 16+ no longer grants to the creator automatically. Both steps tolerate missing
+-- privileges: the API then detects at start-up that it cannot switch roles and relies on its own checks alone.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'threatready_app') THEN
     CREATE ROLE threatready_app NOLOGIN;
   END IF;
+  EXECUTE format('GRANT threatready_app TO %I', current_user);
+EXCEPTION WHEN insufficient_privilege OR invalid_grant_operation THEN
+  RAISE WARNING 'threatready_app role not available (%); row-level security will not be enforced for API requests', SQLERRM;
 END $$;
 --> statement-breakpoint
-GRANT USAGE ON SCHEMA public TO threatready_app;
---> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO threatready_app;
---> statement-breakpoint
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO threatready_app;
---> statement-breakpoint
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO threatready_app;
---> statement-breakpoint
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO threatready_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'threatready_app') THEN
+    GRANT USAGE ON SCHEMA public TO threatready_app;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO threatready_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO threatready_app;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO threatready_app;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO threatready_app;
+  END IF;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'could not grant privileges to threatready_app (%)', SQLERRM;
+END $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION app_user_id() RETURNS text LANGUAGE sql STABLE AS
 $$ SELECT nullif(current_setting('app.user_id', true), '') $$;

@@ -21,6 +21,6 @@
     "db:generate": "npm run db:generate -w @threatready/api",
     "db:migrate": "npm run db:migrate -w @threatready/api",
     "e2e": "npm run e2e -w threatready-web",
-    "start": "npm run start -w @threatready/api"
+    "start": "node apps/api/dist/main.js"
   }
 }

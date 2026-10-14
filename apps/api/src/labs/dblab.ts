@@ -165,12 +165,21 @@ function runInWorker(path: string, role: string, allowed: string[], sql: string,
       if (child.exitCode === null) child.kill("SIGKILL");
       resolve(r);
     };
-    // The budget covers process start-up as well as the statement itself.
-    const timer = setTimeout(() => done({ ok: false, error: "interrupted: statement exceeded the 2 second lab time budget" }), TIME_BUDGET_MS + 1500);
-    child.once("message", (m) => done(m as WorkerResult));
+    // Hard stop: generous allowance for process start-up on slow CPUs, then the 2 s statement budget (+ margin) once the
+    // child reports that the statement has started. Killing the process is the only way to stop SQLite mid-step.
+    const interrupted = () => done({ ok: false, error: "interrupted: statement exceeded the 2 second lab time budget" });
+    let timer = setTimeout(interrupted, TIME_BUDGET_MS + 8000);
+    child.on("message", (m: WorkerResult & { started?: boolean }) => {
+      if (m.started) {
+        clearTimeout(timer);
+        timer = setTimeout(interrupted, TIME_BUDGET_MS + 500);
+      } else {
+        done(m);
+      }
+    });
     child.once("error", (e) => done({ ok: false, error: e.message }));
     child.once("exit", () => done({ ok: false, error: "interrupted: query process exited" }));
-    child.send({ path, role, allowed, sql, params, maxRows: MAX_ROWS, deadline: Date.now() + TIME_BUDGET_MS });
+    child.send({ path, role, allowed, sql, params, maxRows: MAX_ROWS, budgetMs: TIME_BUDGET_MS });
   });
 }
 

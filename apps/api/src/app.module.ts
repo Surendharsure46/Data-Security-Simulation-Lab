@@ -20,7 +20,9 @@ export const CONTROLLERS = [
 ];
 
 @Module({
-  imports: [ThrottlerModule.forRoot({ throttlers: [{ name: "api", ttl: 60_000, limit: getConfig().apiRateLimitPerMinute }] })],
+  // Async factory: configuration is read when the app is created, not when this module is imported (a missing setting
+  // must surface as a startup error, never as a failed import).
+  imports: [ThrottlerModule.forRootAsync({ useFactory: () => ({ throttlers: [{ name: "api", ttl: 60_000, limit: getConfig().apiRateLimitPerMinute }] }) })],
   controllers: CONTROLLERS,
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

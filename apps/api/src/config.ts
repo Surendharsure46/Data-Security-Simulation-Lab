@@ -13,7 +13,9 @@ export const REPO_DIR = resolve(API_DIR, "..", "..");
 const bool = z.enum(["true", "false", "1", "0"]).transform((v) => v === "true" || v === "1");
 
 const Env = z.object({
-  THREATREADY_ENV: z.enum(["development", "test", "production"]).default("development"),
+  /** Defaults to production on Render (which sets RENDER=true), development elsewhere. */
+  THREATREADY_ENV: z.enum(["development", "test", "production"]).optional(),
+  RENDER: z.string().optional(),
   THREATREADY_ROLE: z.enum(["api", "worker", "all"]).default("all"),
   /** Falls back to PORT (set by hosting platforms such as Render), then 8000. */
   THREATREADY_PORT: z.coerce.number().int().optional(),
@@ -21,7 +23,9 @@ const Env = z.object({
   /** Defaults to 0.0.0.0 in production (containers, PaaS) and 127.0.0.1 otherwise. */
   THREATREADY_HOST: z.string().optional(),
   /** postgres://… for PostgreSQL (RDS in production); pglite://<dir> or pglite://memory for the embedded database. */
-  THREATREADY_DATABASE_URL: z.string().default(`pglite://${join(API_DIR, "var", "pgdata").replace(/\\/g, "/")}`),
+  THREATREADY_DATABASE_URL: z.string().optional(),
+  /** Conventional name used by Render, Heroku, Railway and others; used when THREATREADY_DATABASE_URL is not set. */
+  DATABASE_URL: z.string().optional(),
   THREATREADY_LAB_DATA_DIR: z.string().default(join(API_DIR, "var", "labs")),
   THREATREADY_FRONTEND_DIST: z.string().default(join(REPO_DIR, "apps", "web", "dist")),
   /** Public origin of the app (cookies, Better Auth callbacks, CSRF origin check). */
@@ -50,19 +54,26 @@ export type Config = ReturnType<typeof buildConfig>;
 
 function buildConfig(env: Record<string, string | undefined>) {
   const e = Env.parse(env);
-  const production = e.THREATREADY_ENV === "production";
+  const envName = e.THREATREADY_ENV ?? (e.RENDER ? "production" : "development");
+  const production = envName === "production";
+  const databaseUrl = e.THREATREADY_DATABASE_URL ?? e.DATABASE_URL
+    ?? (production ? undefined : `pglite://${join(API_DIR, "var", "pgdata").replace(/\\/g, "/")}`);
+  if (!databaseUrl) {
+    // The embedded database needs ~500 MB of memory and keeps data on the instance's disk: never a silent production default.
+    throw new Error("Set DATABASE_URL (or THREATREADY_DATABASE_URL) to a PostgreSQL connection string, e.g. the Internal Database URL of a Render PostgreSQL instance");
+  }
   const publicUrl = (e.THREATREADY_PUBLIC_URL ?? e.RENDER_EXTERNAL_URL ?? "http://localhost:5173").replace(/\/$/, "");
   if (production && !e.THREATREADY_AUTH_SECRET) throw new Error("THREATREADY_AUTH_SECRET (32+ characters) is required in production");
   if (e.THREATREADY_BOOTSTRAP_ADMIN_PASSWORD !== undefined && e.THREATREADY_BOOTSTRAP_ADMIN_PASSWORD.length < 12) {
     throw new Error("THREATREADY_BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters");
   }
   return {
-    env: e.THREATREADY_ENV,
+    env: envName,
     production,
     role: e.THREATREADY_ROLE,
     port: e.THREATREADY_PORT ?? e.PORT ?? 8000,
     host: e.THREATREADY_HOST ?? (production ? "0.0.0.0" : "127.0.0.1"),
-    databaseUrl: e.THREATREADY_DATABASE_URL,
+    databaseUrl,
     labDataDir: e.THREATREADY_LAB_DATA_DIR,
     frontendDist: e.THREATREADY_FRONTEND_DIST,
     publicUrl,

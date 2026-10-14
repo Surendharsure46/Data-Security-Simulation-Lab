@@ -62,7 +62,7 @@ Builds everything, migrates and serves web app + API on port 8000 (role `all`: A
 | Setting | Value |
 |---|---|
 | Build Command | `npm ci && npm run build` |
-| Start Command | `npm start` |
+| Start Command | `npm start` (runs `node apps/api/dist/main.js` directly, no extra npm processes) |
 | Node version | 26.10 (from `.node-version` / `engines`) |
 | Health check path | `/api/health` |
 
@@ -72,10 +72,10 @@ Environment variables:
 |---|---|
 | `THREATREADY_ENV` | `production` |
 | `THREATREADY_AUTH_SECRET` | 32+ random characters (required; Render's "Generate" button works) |
-| `THREATREADY_DATABASE_URL` | the Internal Database URL of a Render PostgreSQL instance. Without it the embedded database lives on the service's disk and is lost on every deploy. |
+| `DATABASE_URL` (or `THREATREADY_DATABASE_URL`) | the **Internal Database URL** of a Render PostgreSQL instance (required in production). The embedded database needs about 500 MB of memory, more than a 512 MB instance has, so production refuses to start without a PostgreSQL URL. |
 | `THREATREADY_BOOTSTRAP_ADMIN_EMAIL` / `..._PASSWORD` | optional admin account |
 
-Render's `PORT` and `RENDER_EXTERNAL_URL` are picked up automatically (listening address, cookie origin and trusted origin). Set `THREATREADY_PUBLIC_URL` when you use a custom domain. Migrations run at start-up (`THREATREADY_MIGRATE_ON_START`, default `true`). Do not set `NODE_ENV=production` for the build, or `npm ci` skips the build tools.
+Memory: with PostgreSQL the server uses roughly 250–300 MB, which fits a 512 MB instance. The database user does not need to be a superuser: without CREATEROLE the migrations still succeed and the app logs a warning that the row-level security backstop is off (application checks still apply). Render's `PORT` and `RENDER_EXTERNAL_URL` are picked up automatically (listening address, cookie origin and trusted origin). Set `THREATREADY_PUBLIC_URL` when you use a custom domain. Migrations run at start-up (`THREATREADY_MIGRATE_ON_START`, default `true`). Do not set `NODE_ENV=production` for the build, or `npm ci` skips the build tools.
 
 ## Containers
 

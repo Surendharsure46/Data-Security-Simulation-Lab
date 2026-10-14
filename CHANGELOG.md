@@ -21,6 +21,8 @@
 
 ### Fixed during verification
 - Hosting (Render): the API listens on `PORT` and `0.0.0.0` in production, uses `RENDER_EXTERNAL_URL` as its public origin, applies migrations at start-up (`THREATREADY_MIGRATE_ON_START`), and no longer demands email verification or staff two-factor when there is no mail delivery or enrolment screen. Added a root `npm start`.
+- Production refuses to start on the embedded database (it needs ~500 MB and ran a 512 MB Render instance out of memory) and accepts the conventional `DATABASE_URL`. Migration `0001_rls` now grants `threatready_app` membership to the migrating user (required on PostgreSQL 16+, e.g. RDS) and tolerates users without CREATEROLE; the API probes the role at start-up and warns when the RLS backstop is unavailable.
+- On Render (`RENDER` set) the environment defaults to production; the throttler reads configuration when the app is created, not at import; the database-lab time budget starts when the statement starts, so slow process start-up on small instances no longer cuts off normal queries.
 - Nest treated Zod schemas passed to parameter decorators as pipes (they have a `transform` method); schemas are now wrapped.
 - A runaway cross join kept its SQLite lock in a worker thread; statements now run in a killable child process.
 - pg-boss installs its schema with multi-statement scripts, which PGlite's `query()` rejects; parameterless scripts now go through `exec()`.

@@ -6,7 +6,7 @@
  */
 import { constants as C, DatabaseSync } from "node:sqlite";
 
-interface Job { path: string; role: string; allowed: string[]; sql: string; params: string[]; maxRows: number; deadline: number }
+interface Job { path: string; role: string; allowed: string[]; sql: string; params: string[]; maxRows: number; budgetMs: number }
 
 const LAB_WRITE_ACTIONS = new Set([C.SQLITE_INSERT, C.SQLITE_UPDATE, C.SQLITE_DELETE, C.SQLITE_DROP_TABLE, C.SQLITE_DROP_VIEW, C.SQLITE_CREATE_TABLE]);
 
@@ -54,6 +54,7 @@ function hasSecondStatement(sql: string): boolean {
 }
 
 function run(job: Job) {
+  const deadline = Date.now() + job.budgetMs; // the budget covers the statement, not process start-up
   if (hasSecondStatement(job.sql)) return { ok: false, error: "You can only execute one statement at a time." };
   const db = new DatabaseSync(job.path, { timeout: 5000 });
   try {
@@ -66,7 +67,7 @@ function run(job: Job) {
     for (const r of st.iterate(...job.params) as Iterable<unknown[]>) {
       total += 1;
       if (rows.length < job.maxRows) rows.push(r.map((v) => (typeof v === "bigint" ? Number(v) : v instanceof Uint8Array ? `<${v.length} bytes>` : v)));
-      if (Date.now() > job.deadline) throw new Error("interrupted: statement exceeded the 2 second lab time budget");
+      if (Date.now() > deadline) throw new Error("interrupted: statement exceeded the 2 second lab time budget");
     }
     return { ok: true, columns, rows, total };
   } catch (e) {
@@ -78,6 +79,7 @@ function run(job: Job) {
 }
 
 process.once("message", (job: Job) => {
+  process.send!({ started: true }); // the parent starts its hard 2 s timer now that start-up is over
   const result = run(job);
   process.send!(result, () => process.exit(0));
 });

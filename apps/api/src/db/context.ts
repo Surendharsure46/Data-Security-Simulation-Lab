@@ -29,9 +29,26 @@ interface Ctx {
 
 const als = new AsyncLocalStorage<Ctx>();
 let database: Database | null = null;
+let restrictedRole = true;
 
 export function setDatabase(d: Database): void {
   database = d;
+}
+
+/**
+ * Check that this database user can switch to threatready_app (needs the role and membership). If not, API requests run
+ * without the role switch: application checks still apply, but the row-level security backstop does not.
+ */
+export async function probeRestrictedRole(d: Database): Promise<boolean> {
+  try {
+    await d.db.transaction(async (t) => {
+      await (t as unknown as Db).execute(sql`set local role threatready_app`);
+    });
+    restrictedRole = true;
+  } catch {
+    restrictedRole = false;
+  }
+  return restrictedRole;
 }
 
 export function getDatabase(): Database {
@@ -58,7 +75,7 @@ async function run<T>(principal: Principal | undefined, restricted: boolean, fn:
   if (existing) return fn(); // nested call: reuse the surrounding transaction
   return getDatabase().db.transaction(async (t) => {
     const txDb = t as unknown as Db;
-    if (restricted) {
+    if (restricted && restrictedRole) {
       await txDb.execute(sql`select set_config('app.user_id', ${principal?.userId ?? ""}, true),
         set_config('app.org_id', ${principal ? String(principal.orgId) : ""}, true),
         set_config('app.staff', ${principal?.staff ? "true" : "false"}, true)`);

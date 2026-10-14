@@ -14,7 +14,7 @@ import { AppModule, CONTROLLERS } from "./app.module.js";
 import { getConfig } from "./config.js";
 import { validateCareerContent } from "./content/career.js";
 import { createDatabase, type Database } from "./db/client.js";
-import { getDatabase, setDatabase } from "./db/context.js";
+import { getDatabase, probeRestrictedRole, setDatabase } from "./db/context.js";
 import { user } from "./db/schema.js";
 import { allDefinitions } from "./domain/scenario-defs.js";
 import { createAuth, getAuth, IDENTITY_BASE_PATH } from "./platform/auth.js";
@@ -31,6 +31,10 @@ export async function initPlatform(opts: { database?: Database; migrate?: boolea
   const database = opts.database ?? createDatabase(cfg.databaseUrl);
   if (opts.migrate ?? cfg.migrateOnStart) await database.migrate();
   setDatabase(database);
+  if (!(await probeRestrictedRole(database))) {
+    new Logger("Database").warn("Cannot switch to role threatready_app (missing CREATEROLE or membership); row-level security is NOT enforced. "
+      + "Run as a database owner with CREATEROLE, or grant the role: GRANT threatready_app TO <app user>.");
+  }
   createAuth(database);
   allDefinitions(); // fail fast on an invalid scenario definition
   await validateCareerContent(); // and on a broken mission / skill reference
