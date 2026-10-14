@@ -25,11 +25,18 @@ function ResultTable({ r }: { r: any }) {
   );
 }
 
-export default function DatabaseLab() {
+export interface LabViewProps { embedded?: boolean; focus?: string[]; onChange?: () => void }
+
+const TAB_FOR: Record<string, "privilege" | "injection" | "masking" | "audit" | "backup"> = {
+  least_privilege: "privilege", injection: "injection", masking: "masking", audit: "audit", backup_restore: "backup",
+};
+
+export default function DatabaseLab({ embedded = false, focus, onChange }: LabViewProps = {}) {
   const toast = useToast();
-  const ov = useLoad(() => api.get("/api/labs/database"), []);
+  const ov0 = useLoad(() => api.get("/api/labs/database"), []);
+  const ov = { ...ov0, reload: () => { ov0.reload(); onChange?.(); } };
   const audit = useLoad(() => api.get("/api/labs/database/audit"), []);
-  const [tab, setTab] = useState<"query" | "privilege" | "injection" | "masking" | "audit" | "backup">("privilege");
+  const [tab, setTab] = useState<"query" | "privilege" | "injection" | "masking" | "audit" | "backup">(focus?.length ? TAB_FOR[focus[0]] : "privilege");
   const [role, setRole] = useState("support_agent");
   const [sql, setSql] = useState("SELECT * FROM customers LIMIT 5");
   const [qr, setQr] = useState<any>(null);
@@ -56,15 +63,16 @@ export default function DatabaseLab() {
 
   return (
     <>
-      <PageHead title="Database Security Lab" crumbs="Database Security Lab" mode="REAL_LAB" actions={
+      {!embedded && <PageHead title="Database Security Lab" crumbs="Database Security Lab" mode="REAL_LAB" actions={
         <ActionButton confirm="Recreate your lab database from scratch?" onClick={async () => { await api.post("/api/labs/database/reset"); toast("Lab database recreated"); setQr(null); reloadAll(); }}>Reset lab database</ActionButton>
       }>
         <p>Your own disposable SQLite database with 300 synthetic customers. Statements really execute. <strong>SQLite has no native roles or GRANT</strong>: this lab enforces roles with SQLite's authorizer callback, the engine's real per-statement access hook. PostgreSQL/MySQL would use GRANT/REVOKE — see Real-Tool Practice.</p>
-      </PageHead>
-      <div className="row" style={{ marginBottom: 10 }}>
+      </PageHead>}
+      {!embedded && <div className="row" style={{ marginBottom: 10 }}>
         {["least_privilege", "injection", "masking", "audit", "backup_restore"].map((x) => <span key={x} className="row small">{x.replace("_", " ")} <Done ok={passed.includes(x)} /></span>)}
-      </div>
-      <Tabs tabs={[["privilege", "Least privilege"], ["injection", "SQL injection"], ["masking", "Masking"], ["audit", "Audit log"], ["backup", "Backup & restore"], ["query", "Free query"]]} value={tab} onChange={setTab} />
+      </div>}
+      <Tabs tabs={([["privilege", "Least privilege"], ["injection", "SQL injection"], ["masking", "Masking"], ["audit", "Audit log"], ["backup", "Backup & restore"], ["query", "Free query"]] as [typeof tab, string][])
+        .filter(([k]) => !focus?.length || focus.some((f) => TAB_FOR[f] === k))} value={tab} onChange={setTab} />
 
       {tab === "privilege" && (
         <div className="grid two">

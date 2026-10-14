@@ -30,8 +30,8 @@ export default function Dashboard() {
   const p = data.pathway;
   return (
     <>
-      <PageHead title={`Welcome, ${data.user.display_name}`}>
-        <p>Understand → Discover → Classify → Configure → Execute → Detect → Investigate → Remediate → Verify → Document.</p>
+      <PageHead title="Skills & Progress" crumbs="Skills & Progress">
+        <p>{data.user.display_name}'s learning-library progress. Lessons complete only from server-verified work; mission skills are on <Link to="/">Organization Home</Link>.</p>
       </PageHead>
       <div className="grid three">
         <Card title="Current learning path" actions={<Link to="/learning" className="btn small">Change</Link>}>

@@ -201,7 +201,7 @@ def task_progress(db: Session, s: ScenarioSession) -> list[dict[str, Any]]:
     c = Ctx(db, s)
     out = []
     for t in c.d.tasks:
-        out.append({"key": t.key, "stage": t.stage, "title": t.title, "description": t.description,
+        out.append({"key": t.key, "stage": t.stage, "phase": t.phase, "title": t.title, "description": t.description,
                     "done": bool(TASK_CHECKS[t.check.type](c, t.check.params)),
                     "hints_available": len(c.d.hints.get(t.key, [])),
                     "hints_revealed": len((s.hints_used or {}).get(t.key, []))})

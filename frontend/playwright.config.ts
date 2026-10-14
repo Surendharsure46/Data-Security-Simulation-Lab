@@ -15,6 +15,7 @@ export default defineConfig({
     {
       command: `"${python}" ../backend/scripts/e2e_server.py 8099`,
       url: "http://127.0.0.1:8099/api/health",
+      env: { THREATREADY_BOOTSTRAP_ADMIN_PASSWORD: "E2e-Admin-Synthetic-42" },
       reuseExistingServer: false,
       timeout: 60_000,
     },

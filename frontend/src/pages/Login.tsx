@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { errorText } from "../api";
 import { Banner, ErrorBanner, Field } from "../components/ui";
 import { useAuth } from "../state";
@@ -29,6 +30,7 @@ export default function Login() {
   return (
     <div className="auth-wrap">
       <div className="card auth-card">
+        <div className="row between"><Link to="/" className="small">← Back to welcome</Link><Link to="/get-started" className="small">New here? Let’s get started →</Link></div>
         <h1>Threatready</h1>
         <p className="muted">
           A practical Data Security training and validation platform connecting enterprise simulations, policy engineering,
@@ -41,8 +43,8 @@ export default function Login() {
         </div>
         <form onSubmit={submit} className="stack">
           <ErrorBanner error={error} />
-          <Field label="Username">
-            <input name="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={3} />
+          <Field label="Username" hint={mode === "register" ? "Your email address or a name using letters, digits and . _ - + @" : undefined}>
+            <input name="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={3} maxLength={64} />
           </Field>
           {mode === "register" && (
             <Field label="Display name">

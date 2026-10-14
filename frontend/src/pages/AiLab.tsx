@@ -9,10 +9,15 @@ function Done({ ok }: { ok: boolean }) {
   return ok ? <Badge tone="ok">Exercise passed</Badge> : <Badge>Not yet passed</Badge>;
 }
 
-export default function AiLab() {
+export interface LabViewProps { embedded?: boolean; focus?: string[]; onChange?: () => void }
+
+const AI_TAB_FOR: Record<string, "gateway" | "rag" | "logging"> = { prompt_gateway: "gateway", rag_acl: "rag", retention: "logging" };
+
+export default function AiLab({ embedded = false, focus, onChange }: LabViewProps = {}) {
   const toast = useToast();
-  const ov = useLoad(() => api.get("/api/labs/ai"), []);
-  const [tab, setTab] = useState<"gateway" | "rag" | "logging">("gateway");
+  const ov0 = useLoad(() => api.get("/api/labs/ai"), []);
+  const ov = { ...ov0, reload: () => { ov0.reload(); onChange?.(); } };
+  const [tab, setTab] = useState<"gateway" | "rag" | "logging">(focus?.length ? AI_TAB_FOR[focus[0]] : "gateway");
   const [policy, setPolicy] = useState<PolicyDefinition | null>(null);
   const [gw, setGw] = useState<any>(null);
   const [rq, setRq] = useState({ role: "support_agent", query: "what is rita silva salary" });
@@ -32,12 +37,13 @@ export default function AiLab() {
   const passed: string[] = d.passed;
   return (
     <>
-      <PageHead title="AI Data Security" crumbs="AI Data Security" mode="SIMULATED" actions={
+      {!embedded && <PageHead title="AI Data Security" crumbs="AI Data Security" mode="SIMULATED" actions={
         <ActionButton confirm="Reset the AI lab configuration?" onClick={async () => { await api.post("/api/labs/ai/reset"); setPolicy(null); setGw(null); setRr(null); setRt(null); setLogRes(null); ov.reload(); }}>Reset lab</ActionButton>
       }>
         <p>{d.note} Basic exercises never require a paid model API, and no user data leaves the platform.</p>
-      </PageHead>
-      <Tabs tabs={[["gateway", "Prompt gateway (DLP for AI)"], ["rag", "Permission-aware retrieval"], ["logging", "AI logging & retention"]]} value={tab} onChange={setTab} />
+      </PageHead>}
+      <Tabs tabs={([["gateway", "Prompt gateway (DLP for AI)"], ["rag", "Permission-aware retrieval"], ["logging", "AI logging & retention"]] as [typeof tab, string][])
+        .filter(([k]) => !focus?.length || focus.some((f) => AI_TAB_FOR[f] === k))} value={tab} onChange={setTab} />
 
       {tab === "gateway" && (
         <div className="grid side">

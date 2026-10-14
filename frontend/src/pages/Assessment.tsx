@@ -90,12 +90,14 @@ export default function Assessment() {
               <div>
                 <h3>Before you submit</h3>
                 <p className="small">{session.progress.filter((t) => !t.done).length} of {session.progress.length} tasks are not yet complete. Submitting locks the session; reset afterwards to try again with a new variant.</p>
-                <ActionButton className="primary" disabled={!canWrite} confirm="Submit this session for grading? It becomes read-only." onClick={async () => {
+                {session.mission ? (
+                  <Banner tone="info">This session belongs to mission {session.mission.mission_id}. <Link to={`/missions/${session.mission.attempt_id}`}>Submit your evidence and explanation in the mission view</Link>.</Banner>
+                ) : <ActionButton className="primary" disabled={!canWrite} confirm="Submit this session for grading? It becomes read-only." onClick={async () => {
                   const a = await api.post<Attempt>(`/api/sessions/${sid}/submit`, { confirm: true });
                   toast(`Submitted: ${a.total_score}/100 ${a.passed ? "PASS" : "NOT PASSED"}`, a.passed ? "ok" : "info");
                   await refresh();
                   all.reload();
-                }}>Submit for assessment</ActionButton>
+                }}>Submit for assessment</ActionButton>}
               </div>
             </div>
           </Card>

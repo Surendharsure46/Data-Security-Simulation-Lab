@@ -1,13 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// Full learner journey through the browser (spec section 21): register, start the reference scenario,
-// inspect and classify data, configure and test a policy, run the day, investigate, remediate,
-// replay, submit, read the report, then reset and replay.
+// Full learner journey through the browser (spec section 21): welcome page -> Let's Get Started -> choose a role ->
+// create an account -> My Journey -> Level 0 lesson reader, then the reference scenario in the practice sandbox:
+// inspect and classify data, configure and test a policy, run the day, investigate, remediate, replay, submit,
+// read the report, then reset and replay.
 
 const PASSWORD = "E2e-Synthetic-Pass-42";
+const ADMIN_PASSWORD = "E2e-Admin-Synthetic-42";  // bootstrap admin of the throw-away e2e backend (playwright.config.ts)
 
 async function nav(page: Page, name: string) {
-  await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name }).click();
+  const sidebar = page.getByRole("navigation", { name: "Primary" });
+  const link = sidebar.getByRole("link", { name });
+  if (!(await link.isVisible())) await sidebar.getByText(/^Tools · /).click();  // the tools section is collapsed
+  await link.click();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
 
@@ -18,15 +23,49 @@ async function toastOrResult(page: Page) {
 test("reference scenario end to end", async ({ page }) => {
   page.on("dialog", (d) => d.accept());
 
-  // 1-2. open the app and create a learner
+  // 1. public welcome page with the call to action in the top-right corner
   await page.goto("/");
-  await page.getByRole("tab", { name: "Create learner account" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Welcome to Data Security" })).toBeVisible();
+  await page.getByRole("banner").getByRole("link", { name: /Let.s Get Started/ }).click();
+
+  // 2. platform overview, choose a role, create the account
+  await expect(page.getByRole("heading", { level: 1, name: "How Threatready works" })).toBeVisible();
+  await expect(page.getByText("Your path: Level 0 to Level 5")).toBeVisible();
+  await page.getByRole("radio", { name: /Data Security SOC Analyst/ }).click();
   const user = `e2e${Date.now()}`;
   await page.locator('input[name="username"]').fill(user);
   await page.locator('input[name="display_name"]').fill("E2E Learner");
   await page.locator('input[name="password"]').fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByRole("heading", { name: /Welcome, E2E Learner/ })).toBeVisible();
+  await page.getByRole("button", { name: "Create account and start Level 0" }).click();
+
+  // 2b. My Journey: role title, six levels, guided tour, next step opens the Level 0 lesson reader
+  await expect(page.getByRole("heading", { level: 1, name: "Trainee Data Security SOC Analyst" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip tour" }).click();
+  await expect(page.getByText("Level 5 · Mastery")).toBeVisible();
+  await page.getByRole("button", { name: "Continue →" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Meet Kestrel Ridge Financial" })).toBeVisible();
+  await page.getByRole("button", { name: /Got it — next lesson/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Data security and the data lifecycle" })).toBeVisible();
+  await page.getByRole("link", { name: "My Journey" }).first().click();
+  await expect(page.getByText("1/9 steps")).toBeVisible();
+
+  // 2c. tools unlock level by level: at Level 0 only the Encryption Lab is open
+  await expect(page.getByText(/Tools · 1\/\d+ unlocked/)).toBeVisible();
+  await page.goto("/workspace");
+  await expect(page.getByText(/Unlocks at/)).toBeVisible();
+  await expect(page.getByText("Level 1", { exact: true }).first()).toBeVisible();
+
+  // 2d. the free practice sandbox below needs Level 1 tools; continue as the bootstrap administrator (staff see every tool)
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("banner").getByRole("link", { name: "Sign in" }).click();
+  await page.locator('input[name="username"]').fill("admin");
+  await page.locator('input[name="password"]').fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("radio", { name: /Data Security SOC Analyst/ }).click();
+  await page.getByRole("button", { name: "Start my journey →" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Trainee Data Security SOC Analyst" })).toBeVisible();
+  const skip = page.getByRole("button", { name: "Skip tour" });
+  if (await skip.isVisible()) await skip.click();
 
   // 3. start the reference scenario (guided)
   await nav(page, "Simulation Workspace");

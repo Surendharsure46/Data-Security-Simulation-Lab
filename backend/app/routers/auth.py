@@ -19,15 +19,15 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 class RegisterIn(BaseModel):
-    username: str = Field(min_length=3, max_length=32)
+    username: str = Field(min_length=3, max_length=64)
     display_name: str = Field(min_length=1, max_length=80)
     password: str = Field(min_length=10, max_length=128)
 
     @field_validator("username")
     @classmethod
     def _u(cls, v: str) -> str:
-        if not re.fullmatch(r"[a-zA-Z0-9_.-]+", v):
-            raise ValueError("Username may contain letters, digits, '.', '_' and '-' only")
+        if not re.fullmatch(r"[a-zA-Z0-9_.+@-]+", v):
+            raise ValueError("Use letters, digits and . _ - + @ only (an email address is fine)")
         return v.lower()
 
     @field_validator("password")

@@ -2,7 +2,9 @@
 
 **A practical Data Security training and validation platform that connects enterprise simulations, policy engineering, security investigations and verified real-tool practice in one progressive learning environment.**
 
-Learners work inside a private copy of a fictional company (Kestrel Ridge Financial). They discover and classify data, write and test executable DLP policies, run a simulated business day, then investigate the alerts. After that they contain the incident, fix the root cause, prove the fix by replaying the day, and receive a server-calculated, explainable assessment and an incident report generated from what they actually did.
+The journey starts on a public **Welcome to Data Security** page. **Let’s Get Started** (top right) leads to a page that explains the platform, shows what you will do and lets you **choose a role**. You then climb **six levels, Level 0 (Foundation) to Level 5 (Mastery)**. Each level has short fundamentals, a server-graded knowledge check and hands-on labs with a step-by-step instructor panel. When a level is complete a **congratulations popup** appears and the next level unlocks automatically. See [docs/WORKFLOW.md](docs/WORKFLOW.md).
+
+Inside simulation labs, learners work in a private copy of the company. They discover and classify data, write and test executable DLP policies, run a simulated business day, then investigate the alerts. After that they contain the incident, fix the root cause, prove the fix by replaying the day, and receive a server-calculated, explainable assessment and an incident report generated from what they actually did.
 
 > All companies, people, records and events are synthetic. Every event, lab result and report states its execution mode: **SIMULATED**, **REAL_LAB** (a real operation in your isolated local lab) or **INTEGRATED** (no integrated connectors exist in this release).
 
@@ -12,6 +14,7 @@ Learners work inside a private copy of a fictional company (Kestrel Ridge Financ
 
 | Area | Status | Mode |
 |---|---|---|
+| Learning journey: public welcome + get-started pages, role choice, Levels 0–5 (fundamentals reader, knowledge checks, 15 guided labs), lab sessions with step-by-step instructions, required criteria, skill gaps + remedial lessons, retries, skill records, automatic level unlock with congratulations popup, guided tour | Implemented, API-tested (10 tests) and browser-tested | server-side |
 | Reference scenario *Unauthorized Customer-Data Export* (2 variants), full loop from discovery to report | Implemented, API- and browser-tested | SIMULATED |
 | Scenario engine: start, pause, resume, reset (new attempt / new variant), deterministic replay, control-validation replay | Implemented | SIMULATED |
 | Data Discovery: 10 detectors with validators (Luhn, IBAN mod-97, SSN rules), masked evidence, confidence | Implemented | SIMULATED |
@@ -47,7 +50,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
 ```
 
-Open http://localhost:5173, choose **Create learner account**, then **Simulation Workspace → Start guided practice**.
+Open http://localhost:5173, read the welcome page, click **Let’s Get Started**, choose a role and create your account. **My Journey** then shows a **Continue** button for your next step.
 
 Manual equivalent:
 
@@ -77,19 +80,20 @@ Or individually: `backend> .\.venv\Scripts\python.exe -m pytest` · `frontend> n
 
 ## A first exercise
 
-1. **Simulation Workspace** → *Start guided practice*. Read the briefing; the right-hand checklist tracks 15 tasks (hints available in guided mode).
+0. On **My Journey** click **Continue**: read the Level 0 lessons, pass the knowledge check and complete the two Level 0 labs to unlock Level 1. Level 1's first lab is the simulation below; its lab view groups these steps into phases and links to each tool.
+1. **Simulation Workspace** (opened from the lab). Read the briefing; the right-hand checklist tracks 15 tasks (hints available in guided mode).
 2. **Data Discovery** → *Run discovery scan*; open `customer_master_export_2026Q1.csv` and inspect masked evidence and who can read it.
 3. **Classification Studio** → classify the export and assign an owner; review the grants in *Ownership & access review*.
 4. **DLP Policy Studio** → create a policy, test a prohibited and a legitimate transfer, read the trace.
 5. **Simulation Workspace** → *Run business day*. **Incident Investigation** → triage alerts, open a case, link evidence, record observations/inferences/unknowns, set scope with the risk calculator, contain.
-6. Fix the root cause, then *Run control-validation replay*. Write the report sections and **Assessment & Reports** → *Submit*.
+6. Fix the root cause, then *Run control-validation replay*. Write the report sections, then in the lab's **Submit Evidence and Explanation** phase write your explanation, cite case evidence and submit. Pass, and your skills are recorded and the next lab opens. Fail, and you see your skill gaps and a remedial lesson, and can retry.
 
 ## Repository layout
 
 ```
 backend/   FastAPI app (app/), Alembic migrations, pytest suite, scenario content (app/content)
 frontend/  React + TypeScript (Vite), Vitest unit tests, Playwright e2e (e2e/)
-docs/      Requirements, architecture, data model, scenarios, assessment, integrations, security, testing, deployment
+docs/      Workflow, requirements, architecture, data model, scenarios, assessment, integrations, security, testing, deployment
 scripts/   Windows setup/dev/test/build scripts
 ```
 

@@ -3,9 +3,12 @@ import { api } from "../api";
 import { ActionButton, Badge, Banner, Card, LabelBadge, Loading, PageHead, Provenance, Status, useToast } from "../components/ui";
 import { useLoad } from "../state";
 
-export default function CloudLab() {
+export interface LabViewProps { embedded?: boolean; focus?: string[]; onChange?: () => void }
+
+export default function CloudLab({ embedded = false, onChange }: LabViewProps = {}) {
   const toast = useToast();
-  const ov = useLoad(() => api.get("/api/labs/cloud"), []);
+  const ov0 = useLoad(() => api.get("/api/labs/cloud"), []);
+  const ov = { ...ov0, reload: () => { ov0.reload(); onChange?.(); } };
   const [assessment, setAssessment] = useState<any>(null);
   const [answer, setAnswer] = useState("");
   const [verify, setVerify] = useState<any>(null);
@@ -19,11 +22,11 @@ export default function CloudLab() {
   };
   return (
     <>
-      <PageHead title="Cloud Data Security / DSPM" crumbs="Cloud DSPM Lab" mode="SIMULATED" actions={
+      {!embedded && <PageHead title="Cloud Data Security / DSPM" crumbs="Cloud DSPM Lab" mode="SIMULATED" actions={
         <ActionButton confirm="Restore the original storage configuration?" onClick={async () => { await api.post("/api/labs/cloud/reset"); setAssessment(null); setVerify(null); ov.reload(); }}>Reset lab</ActionButton>
       }>
         <p>{d.note} Credentials for real cloud accounts are never requested; an optional real-cloud exercise requires your own sandbox account (see Real-Tool Practice).</p>
-      </PageHead>
+      </PageHead>}
       <div className="row" style={{ marginBottom: 10 }}>
         <span className="small">Assess {passed.includes("assess") ? <Badge tone="ok">passed</Badge> : <Badge>not yet</Badge>}</span>
         <span className="small">Remediate {passed.includes("remediate") ? <Badge tone="ok">passed</Badge> : <Badge>not yet</Badge>}</span>

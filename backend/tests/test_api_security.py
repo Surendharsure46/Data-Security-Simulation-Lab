@@ -17,6 +17,12 @@ def test_weak_password_and_bad_username_rejected(client):
     assert r.status_code == 422 and r.json()["detail"] == "Invalid input"
 
 
+def test_email_address_accepted_as_username(client):
+    r = client.post("/api/auth/register", json={"username": "Learner.Two+lab@example.com", "display_name": "L2", "password": "Synthetic-Pass-123"})
+    assert r.status_code == 201 and r.json()["user"]["username"] == "learner.two+lab@example.com"
+    assert client.post("/api/auth/login", json={"username": "learner.two+lab@example.com", "password": "Synthetic-Pass-123"}).status_code == 200
+
+
 def test_login_logout_and_token_revocation(client):
     register(client, "alice")
     r = client.post("/api/auth/login", json={"username": "alice", "password": "wrong"})

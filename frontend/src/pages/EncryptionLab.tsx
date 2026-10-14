@@ -7,9 +7,13 @@ function Done({ ok }: { ok: boolean }) {
   return ok ? <Badge tone="ok">Exercise passed</Badge> : <Badge>Not yet passed</Badge>;
 }
 
-export default function EncryptionLab() {
+export interface LabViewProps { embedded?: boolean; focus?: string[]; onChange?: () => void }
+
+export default function EncryptionLab({ embedded = false, focus, onChange }: LabViewProps = {}) {
   const toast = useToast();
-  const ov = useLoad(() => api.get("/api/labs/encryption"), []);
+  const ov0 = useLoad(() => api.get("/api/labs/encryption"), []);
+  const ov = { ...ov0, reload: () => { ov0.reload(); onChange?.(); } };
+  const show = (x: string) => !focus || focus.includes(x);
   const [hashes, setHashes] = useState<Record<string, string>>({});
   const [answer, setAnswer] = useState("");
   const [pass, setPass] = useState("");
@@ -30,11 +34,11 @@ export default function EncryptionLab() {
 
   return (
     <>
-      <PageHead title="Encryption Lab" crumbs="Encryption Lab" mode="REAL_LAB">
+      {!embedded && <PageHead title="Encryption Lab" crumbs="Encryption Lab" mode="REAL_LAB">
         <p>Exercises 1–3 perform real cryptographic operations with the audited <code>cryptography</code> library on disposable synthetic files in your private lab folder. Exercises 4–5 are simulated reviews. No custom cryptography is used.</p>
-      </PageHead>
+      </PageHead>}
 
-      <Card title="1. Hashing vs encryption" actions={<><Provenance mode="REAL_LAB" /><Done ok={passed.includes("hashing")} /></>}>
+      {show("hashing") && <Card title="1. Hashing vs encryption" actions={<><Provenance mode="REAL_LAB" /><Done ok={passed.includes("hashing")} /></>}>
         <p className="small">Finance published a SHA-256 manifest for the original payroll batch. Three copies arrived; one was altered in transit. Hash each file and find the modified one.</p>
         <KV items={[["Published manifest (original)", <code>{d.manifest.original_batch_sha256}</code>]]} />
         <div className="table-wrap" style={{ marginTop: 8 }}><table>
@@ -54,9 +58,9 @@ export default function EncryptionLab() {
             <ActionButton className="small" onClick={async () => setHmac({ ...hmac, out: await api.post("/api/labs/encryption/hmac", { message: hmac.message }) })}>Compute</ActionButton></div>
           {hmac.out && <KV items={[["SHA-256", <code>{hmac.out.sha256}</code>], ["HMAC-SHA256", <code>{hmac.out.hmac_sha256}</code>], ["Why", hmac.out.note]]} />}
         </details>
-      </Card>
+      </Card>}
 
-      <Card title="2. Authenticated file encryption (AES-256-GCM + scrypt)" actions={<><Provenance mode="REAL_LAB" /><Done ok={passed.includes("file_roundtrip")} /></>}>
+      {show("file_roundtrip") && <Card title="2. Authenticated file encryption (AES-256-GCM + scrypt)" actions={<><Provenance mode="REAL_LAB" /><Done ok={passed.includes("file_roundtrip")} /></>}>
         <p className="small">Encrypt the synthetic <code>customer_sample.csv</code>. Then prove: (a) a wrong passphrase is rejected, (b) the right one restores identical plaintext, and (c) after tampering, even the right passphrase is rejected.</p>
         <div className="row">
           <Field label="Passphrase (12+ characters, lab only)"><input type="password" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="off" aria-label="Lab passphrase" /></Field>
@@ -67,9 +71,9 @@ export default function EncryptionLab() {
         {encOut && <KV items={[["Header (authenticated)", <code>{JSON.stringify(encOut.header)}</code>], ["Ciphertext bytes", encOut.ciphertext_bytes], ["Ciphertext prefix", <code>{encOut.ciphertext_prefix_hex}…</code>], ["Plaintext SHA-256", <code>{encOut.plaintext_sha256}</code>]]} />}
         {decOut && (decOut.success ? <Banner tone="ok">Decrypted. Plaintext SHA-256 {decOut.plaintext_sha256.slice(0, 16)}… matches original: {String(decOut.matches_original)}</Banner> : <Banner tone="danger">{decOut.error}</Banner>)}
         {decOut?.checks && <p className="small">Checks: wrong key rejected {decOut.checks.wrong_key_rejected ? "✓" : "✗"} · correct key restores {decOut.checks.correct_ok ? "✓" : "✗"} · tamper rejected {decOut.checks.tamper_rejected ? "✓" : "✗"}</p>}
-      </Card>
+      </Card>}
 
-      <Card title="3. Envelope encryption and key rotation" actions={<><Provenance mode="REAL_LAB" /><Done ok={passed.includes("envelope_rotation")} /></>}>
+      {show("envelope_rotation") && <Card title="3. Envelope encryption and key rotation" actions={<><Provenance mode="REAL_LAB" /><Done ok={passed.includes("envelope_rotation")} /></>}>
         <p className="small">A data key (DEK) encrypts the backup; a key-encryption key (KEK) wraps the DEK (RFC 3394). Rotate the KEK, confirm the bulk ciphertext did not change, and decrypt with the new KEK. Try the retired KEK too.</p>
         <div className="row">
           <ActionButton onClick={async () => setEnvOut([await api.post("/api/labs/encryption/envelope/init")])}>1. Initialise</ActionButton>
@@ -83,9 +87,9 @@ export default function EncryptionLab() {
         </div>
         {envOut.length > 0 && <pre>{envOut.map((o) => JSON.stringify(o, null, 1)).join("\n")}</pre>}
         <Banner tone="info">The lab keyring is a file in your lab folder purely for teaching. Production KEKs stay inside a KMS or HSM.</Banner>
-      </Card>
+      </Card>}
 
-      <Card title="4. TLS: what an observer still sees" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("tls_metadata")} /></>}>
+      {show("tls_metadata") && <Card title="4. TLS: what an observer still sees" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("tls_metadata")} /></>}>
         <p className="small">{d.tls.capture.description}</p>
         <div className="table-wrap"><table><thead><tr><th>t (s)</th><th>Direction</th><th>Record</th><th>Detail</th></tr></thead>
           <tbody>{d.tls.capture.records.map((r: any, i: number) => <tr key={i}><td>{r.t}</td><td>{r.dir}</td><td>{r.type}</td><td className="small mono">{r.detail}</td></tr>)}</tbody></table></div>
@@ -95,9 +99,9 @@ export default function EncryptionLab() {
         ))}</div>
         <ActionButton onClick={async () => { const r = await api.post("/api/labs/encryption/tls/answer", { visible: tls }); setTlsOut(r); ov.reload(); }}>Check answer</ActionButton>
         {tlsOut && <p>{tlsOut.correct_count}/{tlsOut.total} correct {tlsOut.passed ? <Badge tone="ok">passed</Badge> : <Badge tone="warn">try again</Badge>}</p>}
-      </Card>
+      </Card>}
 
-      <Card title="5. Encryption configuration review" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("config_review")} /></>}>
+      {show("config_review") && <Card title="5. Encryption configuration review" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("config_review")} /></>}>
         <p className="small">Service: {config.service}. Change settings, save, then run the validator until no findings remain.</p>
         <div className="grid four">
           <Field label="Minimum TLS"><select value={config.tls_min_version} onChange={(e) => setC({ tls_min_version: e.target.value })}>{d.config_options.tls_min_version.map((o: string) => <option key={o}>{o}</option>)}</select></Field>
@@ -128,7 +132,7 @@ export default function EncryptionLab() {
           <div className="table-wrap" style={{ marginTop: 8 }}><table><thead><tr><th>ID</th><th>Severity</th><th>Finding</th><th>Fix</th></tr></thead>
             <tbody>{findings.map((f) => <tr key={f.id}><td>{f.id}</td><td><Badge tone={f.severity === "MEDIUM" ? "warn" : "danger"}>{f.severity}</Badge></td><td>{f.finding}</td><td className="small">{f.fix}</td></tr>)}</tbody></table></div>
         ))}
-      </Card>
+      </Card>}
     </>
   );
 }

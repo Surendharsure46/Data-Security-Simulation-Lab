@@ -1,8 +1,6 @@
 """Scenario catalogue, session lifecycle, timeline execution, assessment and reports."""
 from __future__ import annotations
 
-import secrets
-from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,11 +18,12 @@ from ..models import (
 )
 from ..security import current_user
 from ..services import assessment, reports
-from ..services.common import DomainError, audit, iso
+from ..services.common import audit, iso
 from ..services.scenario_defs import all_definitions, get_definition, public_view
-from ..services.simulation import (
-    advance_clock, execute_activity, provision_environment, record_action, run_timeline,
+from ..services.session_lifecycle import (
+    mission_attempt_for_session, start_scenario_session, start_time, submit_scenario_session,
 )
+from ..services.simulation import advance_clock, execute_activity, provision_environment, record_action, run_timeline
 from .deps import STAFF_ROLES, alert_out, event_out, load_session, read_session, write_session
 
 router = APIRouter(prefix="/api", tags=["scenarios"])
@@ -49,10 +48,6 @@ class StartIn(BaseModel):
     variant: str | None = Field(default=None, max_length=10)
 
 
-def _start_time(d) -> datetime:
-    return datetime.fromisoformat(d.sim_start.replace("Z", "+00:00"))
-
-
 def session_summary(db: Session, s: ScenarioSession, *, detail: bool = False) -> dict[str, Any]:
     d = get_definition(s.scenario_id)
     out: dict[str, Any] = {
@@ -61,6 +56,8 @@ def session_summary(db: Session, s: ScenarioSession, *, detail: bool = False) ->
         "sim_clock": iso(s.sim_clock), "run_count": s.run_count, "created_at": iso(s.created_at), "updated_at": iso(s.updated_at),
         "user_id": s.user_id, "execution_mode": "SIMULATED",
     }
+    m = mission_attempt_for_session(db, s.id)
+    out["mission"] = {"attempt_id": m.id, "mission_id": m.mission_id, "status": m.status} if m else None
     if detail:
         progress = assessment.task_progress(db, s)
         out["progress"] = progress
@@ -85,24 +82,7 @@ def session_summary(db: Session, s: ScenarioSession, *, detail: bool = False) ->
 
 @router.post("/sessions", status_code=201)
 def start_session(body: StartIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    d = get_definition(body.scenario_id)
-    if d is None:
-        raise HTTPException(404, "Scenario not found")
-    keys = [v.key for v in d.variants]
-    if body.mode == "ASSESSMENT" or body.variant is None:
-        variant = secrets.choice(keys)  # independent assessments always get an unpredictable variant
-    elif body.variant in keys:
-        variant = body.variant
-    else:
-        raise HTTPException(422, f"Unknown variant; available: {keys}")
-    s = ScenarioSession(user_id=user.id, org_id=user.org_id, scenario_id=d.id, scenario_version=d.version, variant=variant,
-                        mode=body.mode, status="ACTIVE", sim_clock=_start_time(d), flags={}, hints_used={})
-    db.add(s)
-    db.flush()
-    provision_environment(db, s)
-    record_action(db, s, "SESSION_START", {"mode": body.mode})
-    audit(db, user_id=user.id, org_id=user.org_id, action="session.start", target_type="session", target_id=s.id,
-          detail={"scenario": d.id, "mode": body.mode})
+    s = start_scenario_session(db, user, body.scenario_id, body.mode, body.variant)
     db.commit()
     return session_summary(db, s, detail=True)
 
@@ -175,6 +155,8 @@ def reset(session_id: int, body: ResetIn, user: User = Depends(current_user), db
     s = _owner_or_404(db, session_id, user)
     if not body.confirm:
         raise HTTPException(409, "Reset discards all work in this session (submitted attempts are kept). Resubmit with confirm=true.")
+    if mission_attempt_for_session(db, s.id) is not None:
+        raise HTTPException(409, "This session belongs to a mission. Use 'Retry with practice or new variant' in the mission view.")
     d = get_definition(s.scenario_id)
     from .curriculum import remember_completed_tasks
     remember_completed_tasks(db, user)
@@ -189,7 +171,7 @@ def reset(session_id: int, body: ResetIn, user: User = Depends(current_user), db
     s.event_seq = 0
     s.flags = {}
     s.hints_used = {}
-    s.sim_clock = _start_time(d)
+    s.sim_clock = start_time(d)
     s.scenario_version = d.version
     provision_environment(db, s)
     record_action(db, s, "SESSION_RESET", {"attempt": s.attempt_number})
@@ -288,12 +270,9 @@ class SubmitIn(BaseModel):
 def submit(body: SubmitIn, s: ScenarioSession = Depends(write_session), user: User = Depends(current_user), db: Session = Depends(get_db)):
     if not body.confirm:
         raise HTTPException(409, "Submission locks the session for grading. Resubmit with confirm=true.")
-    snapshot = reports.to_markdown(reports.build(db, s, "case-report"))
-    attempt = assessment.submit(db, s, user.id, snapshot)
-    s.status = "SUBMITTED"
-    record_action(db, s, "SUBMIT", {}, {"attempt_id": attempt.id, "score": attempt.total_score})
-    audit(db, user_id=user.id, org_id=user.org_id, action="assessment.submit", target_type="session", target_id=s.id,
-          detail={"score": attempt.total_score, "passed": attempt.passed})
+    if mission_attempt_for_session(db, s.id) is not None:
+        raise HTTPException(409, "This session belongs to a mission. Submit your evidence and explanation from the mission view.")
+    attempt = submit_scenario_session(db, s, user)
     db.commit()
     return attempt_out(attempt)
 

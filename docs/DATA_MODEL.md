@@ -1,6 +1,6 @@
 # Data model
 
-Defined in `backend/app/models.py`; schema created by Alembic migration `0001_initial_schema`. A test (`tests/test_migrations.py`) asserts that the migrations produce exactly the ORM schema.
+Defined in `backend/app/models.py`; schema created by Alembic migrations `0001_initial_schema`, `0002_career_and_missions` and `0003_levels_and_roles`. A test (`tests/test_migrations.py`) asserts that the migrations produce exactly the ORM schema.
 
 ## Platform entities
 
@@ -34,6 +34,14 @@ Defined in `backend/app/models.py`; schema created by Alembic migration `0001_in
 | `InvestigationCase`, `CaseNote`, `EvidenceReference` | Case fields (hypothesis, determination, severity, subjects, affected assets, exposure, root causes, report sections), typed notes citing evidence, evidence references validated against session state. |
 | `RemediationAction` | Applied action with before/after state, verification result and status (VERIFIED, VERIFICATION_FAILED, RECORDED). |
 | `AssessmentAttempt` | Submitted score, category scores, per-criterion explanations, critical failures, missing tasks, recommendations, input digest, report snapshot. |
+
+## Learning-journey entities (migrations 0002, 0003)
+
+| Entity | Purpose |
+|---|---|
+| `LearnerProfile` | One per user: onboarding step (ROLE → DONE), chosen role (`desired_role`), highest unlocked level 0–5 (`career_level`), title, fundamentals read and demo-lab progress (`onboarding` JSON), pending celebration (`pending_promotion`: unlocked level, or 6 = journey complete). Knowledge checks are stored as `LabExerciseResult(lab="knowledge", exercise="LEVEL-Ln")`. |
+| `MissionAttempt` | One attempt at a mission: strategy (ASSIGNED / PRACTICE / NEW_VARIANT), whether it counts toward the mission, status (IN_PROGRESS, PASSED, NOT_PASSED, PRACTICE_PASSED, ABANDONED), linked scenario session and assessment attempt, comprehension result, explanation, cited evidence snapshot, score and the full outcome (required criteria, skills, skill gaps, remedial lessons, next step). |
+| `SkillRecord` | Append-only skill evidence from passed missions: skill key, proficiency %, mission, attempt and the criteria/exercises it rests on. |
 
 ## User-level lab entities
 

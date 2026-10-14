@@ -524,3 +524,60 @@ class IntegrationRun(Base):
     status: Mapped[str] = mapped_column(String(20))
     summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# --------------------------------------------------------------------------- career and missions
+
+
+class LearnerProfile(Base):
+    """Career state of one user: onboarding progress, current level and role in the fictional organisation."""
+
+    __tablename__ = "learner_profiles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    onboarding_step: Mapped[str] = mapped_column(String(20), default="ROLE")  # ROLE (choose a role) | DONE
+    onboarding: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # fundamentals read, demo-lab progress
+    desired_role: Mapped[str | None] = mapped_column(String(40), nullable=True)  # role chosen on the get-started page
+    career_level: Mapped[int] = mapped_column(Integer, default=0)  # highest unlocked level, 0..5
+    role_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pending_promotion: Mapped[int | None] = mapped_column(Integer, nullable=True)  # unlocked level (6 = journey complete) awaiting the popup
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class MissionAttempt(Base):
+    """One attempt at an assigned mission. Scenario missions link a scenario session and its assessment attempt."""
+
+    __tablename__ = "mission_attempts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    mission_id: Mapped[str] = mapped_column(String(20))
+    attempt_number: Mapped[int] = mapped_column(Integer, default=1)
+    strategy: Mapped[str] = mapped_column(String(20), default="ASSIGNED")  # ASSIGNED | PRACTICE | NEW_VARIANT
+    counts: Mapped[bool] = mapped_column(Boolean, default=True)  # False for practice runs of an independent mission
+    # IN_PROGRESS | PASSED | NOT_PASSED | PRACTICE_PASSED | ABANDONED
+    status: Mapped[str] = mapped_column(String(20), default="IN_PROGRESS")
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("scenario_sessions.id", ondelete="SET NULL"), nullable=True)
+    understanding: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    explanation: Mapped[str] = mapped_column(Text, default="")
+    cited_evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    assessment_attempt_id: Mapped[int | None] = mapped_column(ForeignKey("assessment_attempts.id"), nullable=True)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    outcome: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SkillRecord(Base):
+    """A skill demonstrated in a passed mission, with the evidence that supports it. Append-only."""
+
+    __tablename__ = "skill_records"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    skill_key: Mapped[str] = mapped_column(String(40))
+    proficiency: Mapped[int] = mapped_column(Integer)  # percent of the mission's points for this skill
+    mission_id: Mapped[str] = mapped_column(String(20))
+    mission_attempt_id: Mapped[int] = mapped_column(ForeignKey("mission_attempts.id", ondelete="CASCADE"))
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

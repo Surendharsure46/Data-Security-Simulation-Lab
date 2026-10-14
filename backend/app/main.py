@@ -11,7 +11,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import db as dbmod
 from .config import get_settings
-from .routers import admin, auth, curriculum, environment, investigations, labs, policies, sessions
+from .content.career import validate_career_content
+from .routers import admin, auth, career, curriculum, environment, investigations, labs, policies, sessions
 from .services.common import DomainError
 
 log = logging.getLogger("threatready")
@@ -25,7 +26,8 @@ def create_app() -> FastAPI:
     settings = get_settings()
     if dbmod.SessionLocal is None:
         dbmod.configure()
-    app = FastAPI(title="Threatready API", version="0.1.0",
+    validate_career_content()  # fail fast on a broken mission/skill reference
+    app = FastAPI(title="Threatready API", version="0.3.0",
                   description="Data Security Operations & Simulation Lab. All scenario data is synthetic.",
                   docs_url="/api/docs" if settings.env != "production" else None, redoc_url=None,
                   openapi_url="/api/openapi.json" if settings.env != "production" else None)
@@ -60,7 +62,7 @@ def create_app() -> FastAPI:
         log.exception("Unhandled error", exc_info=exc)
         return JSONResponse(status_code=500, content={"detail": "Internal error. The incident was logged; no details are exposed."})
 
-    for r in (auth.router, sessions.router, environment.router, policies.router, policies.eng, investigations.router,
+    for r in (auth.router, career.router, sessions.router, environment.router, policies.router, policies.eng, investigations.router,
               curriculum.router, labs.router, admin.router):
         app.include_router(r)
 

@@ -28,6 +28,8 @@ const TONES: Record<string, Tone> = {
   BLOCKED: "danger", DENIED: "danger", FAILURE: "danger", BLOCK: "danger", VERIFICATION_FAILED: "danger", HIGH: "danger", CRITICAL: "danger",
   DISABLED: "neutral", SUBMITTED: "neutral", CLOSED: "neutral", LOW: "neutral",
   TRUE_POSITIVE: "danger", BENIGN_POSITIVE: "ok", FALSE_POSITIVE: "ok", UNDETERMINED: "warn",
+  PASSED: "ok", NOT_PASSED: "danger", PRACTICE_PASSED: "info", ABANDONED: "neutral", ASSIGNED: "info", LOCKED: "neutral",
+  CURRENT: "info",
 };
 
 export function Status({ value }: { value: string | null | undefined }) {
@@ -61,7 +63,7 @@ export function PageHead({ title, crumbs, children, actions, mode }: { title: st
   return (
     <div className="page-head">
       <div>
-        {crumbs && <div className="crumbs"><Link to="/">Overview</Link> / {crumbs}</div>}
+        {crumbs && <div className="crumbs"><Link to="/">Organization Home</Link> / {crumbs}</div>}
         <div className="row">
           <h1>{title}</h1>
           {mode && <Provenance mode={mode} />}

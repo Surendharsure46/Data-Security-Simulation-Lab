@@ -45,6 +45,10 @@ Every result states: *“Platform assessment outcome for the tasks in this scena
 - **ASSESSMENT**: random variant, hints refused by the server (403).
 - Reset after submission starts a new attempt (optionally a new variant); previous attempts are kept.
 
+## Mission required criteria (career workflow)
+
+Missions reuse the scenario rubric unchanged and add their own gate on the stored attempt: score ≥ the mission's `min_score`, no critical failure, and every `required_criteria` item met. An item is either a rubric criterion at a minimum fraction of its points (e.g. `RV-PATH-CLOSED` at full credit) or a rubric category at a minimum percent. Lab missions pass when every listed exercise is verified by the lab. Criteria and exercises map to skills. A skill under 70 %, or one tied to an unmet required criterion, is reported as a gap with its reasons and remedial lessons. Only counted passes write `SkillRecord`s. See [WORKFLOW.md](WORKFLOW.md).
+
 ## Lesson completion
 
 Lessons complete only from server-verified evidence: a scenario task done in any of the learner's sessions (remembered across resets), a passed lab exercise, a server-graded knowledge check (≥75 %, correct options never sent to the client), test-suite runs, change records, or a passed independent assessment (L5).

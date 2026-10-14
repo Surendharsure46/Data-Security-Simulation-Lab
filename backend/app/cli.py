@@ -2,7 +2,7 @@
 
     python -m app.cli init-db          # apply migrations, create default org, bootstrap admin if configured
     python -m app.cli create-user NAME --role instructor   # prompts for a password
-    python -m app.cli validate-content # validate scenario definitions
+    python -m app.cli validate-content # validate scenario definitions and career/mission content
     python -m app.cli reset-data --yes # delete the local database and lab files (development only)
 """
 from __future__ import annotations
@@ -102,6 +102,9 @@ def main(argv: list[str] | None = None) -> int:
         defs = all_definitions()
         for d in defs.values():
             print(f"OK  {d.id} v{d.version}: {len(d.timeline)} steps, {len(d.tasks)} tasks, {len(d.rubric.criteria)} criteria, {len(d.variants)} variants")
+        from .content.career import LEVELS, MISSIONS, validate_career_content
+        validate_career_content()
+        print(f"OK  career: {len(LEVELS)} levels, {len(MISSIONS)} missions")
     elif args.cmd == "reset-data":
         if not args.yes:
             print("This deletes the local SQLite database and all lab files. Re-run with --yes to confirm.")

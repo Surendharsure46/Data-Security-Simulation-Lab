@@ -72,9 +72,14 @@ class TaskCheck(Strict):
         return self
 
 
+MissionPhase = Literal["UNDERSTAND", "INSPECT", "ACT", "OBSERVE", "VALIDATE", "SUBMIT"]
+
+
 class Task(Strict):
     key: str
     stage: str
+    # Mission-workflow phase the task belongs to (see app/content/career.py PHASES).
+    phase: MissionPhase = "ACT"
     title: str
     description: str
     check: TaskCheck
@@ -277,7 +282,7 @@ def public_view(d: ScenarioDefinition) -> dict[str, Any]:
         "objectives": d.objectives,
         "prerequisites": d.prerequisites,
         "variant_count": len(d.variants),
-        "tasks": [{"key": t.key, "stage": t.stage, "title": t.title, "description": t.description} for t in d.tasks],
+        "tasks": [{"key": t.key, "stage": t.stage, "phase": t.phase, "title": t.title, "description": t.description} for t in d.tasks],
         "hint_counts": {k: len(v) for k, v in d.hints.items()},
         "remediation_catalog": [r.model_dump() for r in d.remediation_catalog],
         "policy_test_suite_size": len(d.policy_test_suite),

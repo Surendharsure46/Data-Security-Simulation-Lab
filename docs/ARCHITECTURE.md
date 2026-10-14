@@ -8,8 +8,10 @@ Browser (React SPA)
    ▼
 FastAPI app (app/main.py) ── security headers, safe error handlers
    ├── routers/            HTTP layer: validation (Pydantic), authorization, serialization
-   │     auth · sessions · environment · policies(+engineering) · investigations · curriculum · labs · admin
+   │     auth · career · sessions · environment · policies(+engineering) · investigations · curriculum · labs · admin
    ├── services/           domain logic, no HTTP
+   │     career           onboarding, interactive demo, missions, required criteria, skill gaps, skills, level unlock
+   │     session_lifecycle  scenario-session creation and submission shared by the scenario API and missions
    │     detection        sensitive-data detectors + validators + masking
    │     policy_engine    rule language (Pydantic), evaluator, precedence, explanations, diff
    │     scenario_defs    scenario schema, referential validation, public (answer-free) view
@@ -20,9 +22,13 @@ FastAPI app (app/main.py) ── security headers, safe error handlers
    │     assessment       task progress checks, rubric checks, critical conditions, scoring, digest
    │     reports          report builders + Markdown/HTML/JSON/CSV renderers
    ├── labs/               encryption (REAL_LAB), dblab (REAL_LAB), simlabs (cloud, privacy, AI)
-   ├── content/            company.py (synthetic enterprise), curriculum.py, scenarios/*.json
+   ├── content/            company.py (synthetic enterprise), career.py (onboarding, levels, missions, skills), curriculum.py, scenarios/*.json
    └── models.py / db.py   SQLAlchemy 2 models, engine/session
 ```
+
+## Learner workflow layer
+
+The career/mission layer (`services/career.py`, `routers/career.py`, `content/career.py`) sits **on top of** the scenario engine, labs and assessment engine without changing how they grade. It adds public welcome/get-started pages with role choice, Levels 0–5 with fundamentals and knowledge checks, sequential labs per level, a comprehension gate, a mandatory explanation with cited evidence, mission-specific required criteria evaluated on the stored `AssessmentAttempt`, skill gaps and remedial lessons, retries (practice or new variant), skill records, automatic level unlocks with a congratulations popup. The frontend gates the signed-in app behind role choice (`CareerProvider` in `state.tsx`). Node-by-node mapping: [WORKFLOW.md](WORKFLOW.md).
 
 ## Key design decisions
 
@@ -56,7 +62,7 @@ All timestamps are stored in UTC (SQLite drops tzinfo; `as_utc` restores it) and
 
 ## Frontend
 
-React 18 + TypeScript + Vite; react-router; no UI framework — a small design system in `src/styles.css` and `src/components/ui.tsx` (tokens, light/dark themes, text-labelled badges, accessible focus, responsive grid). `state.tsx` holds the auth context, the active-session context and a `useLoad` hook (keeps data on screen while refreshing). The structured policy editor (`components/PolicyEditor.tsx`) is shared by the DLP Policy Studio and the AI lab; `components/Trace.tsx` renders evaluation traces.
+React 18 + TypeScript + Vite; react-router; no UI framework — a small design system in `src/styles.css` and `src/components/ui.tsx` (tokens, light/dark themes, text-labelled badges, accessible focus, responsive grid). `state.tsx` holds the auth context, the career-profile context (onboarding gate, level, role), the active-session context and a `useLoad` hook. Journey pages: public `pages/public/Welcome.tsx` (`/`) and `GetStarted.tsx` (`/get-started`); signed in, `pages/journey/Journey.tsx` (`/`), `Level.tsx` (`/levels/:n`, lesson reader, knowledge check), `Mission.tsx` (guided lab session / simulation lab), plus the global `LevelUpModal` and first-visit `Tour`. Lab pages accept `embedded`/`focus` props so lab sessions show only the exercises being practised; the former dashboard is `/progress` (keeps data on screen while refreshing). The structured policy editor (`components/PolicyEditor.tsx`) is shared by the DLP Policy Studio and the AI lab; `components/Trace.tsx` renders evaluation traces.
 
 ## Boundaries and non-goals
 

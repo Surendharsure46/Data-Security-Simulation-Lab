@@ -48,7 +48,7 @@ function Launcher() {
               <tbody>
                 {sess.data.map((s) => (
                   <tr key={s.id}>
-                    <td>#{s.id} {s.scenario_title} · attempt {s.attempt_number}</td>
+                    <td>#{s.id} {s.scenario_title} · attempt {s.attempt_number} {s.mission && <Badge tone="info">{s.mission.mission_id}</Badge>}</td>
                     <td>{s.mode}</td><td><Status value={s.status} /></td><td>{s.run_count}</td>
                     <td className="small">{fmtTime(s.updated_at)}</td>
                     <td><button className="small" onClick={() => setSessionId(s.id)}>Open</button></td>
@@ -161,6 +161,7 @@ export default function Workspace() {
         <PageHead title="Simulation Workspace" crumbs="Simulation Workspace" mode="SIMULATED">
           <p>Each session provisions a private copy of the synthetic company Kestrel Ridge Financial. Nothing you do here affects other learners or any real system.</p>
         </PageHead>
+        <Banner tone="info">Assessed work happens in your <Link to="/mission">assigned mission</Link>, which opens its own workspace. Sessions started here are a free practice sandbox: they are graded but do not complete missions or record skills.</Banner>
         <Launcher />
       </>
     );
@@ -173,18 +174,22 @@ export default function Workspace() {
         <>
           {session.status === "ACTIVE" && <ActionButton onClick={async () => { await api.post(`/api/sessions/${sid}/pause`); await refresh(); }}>Pause</ActionButton>}
           {session.status === "PAUSED" && <ActionButton className="primary" onClick={async () => { await api.post(`/api/sessions/${sid}/resume`); await refresh(); }}>Resume</ActionButton>}
+          {session.mission ? <Link className="btn primary" to={`/missions/${session.mission.attempt_id}`}>Back to mission {session.mission.mission_id}</Link> : <>
           <label className="inline-check small"><input type="checkbox" checked={newVariant} onChange={(e) => setNewVariant(e.target.checked)} /> new variant on reset</label>
           <ActionButton confirm="Reset discards all work in this session and starts a new attempt. Submitted results are kept. Continue?" onClick={async () => {
             await api.post(`/api/sessions/${sid}/reset`, { confirm: true, new_variant: newVariant });
             toast("Session reset to the initial state");
             await refresh();
-          }}>Reset</ActionButton>
+          }}>Reset</ActionButton></>}
           <button className="ghost" onClick={() => setSessionId(null)}>Switch scenario</button>
         </>
       }>
         <p>Session #{session.id} · attempt {session.attempt_number} · {session.mode === "GUIDED" ? "guided practice (hints available)" : "independent assessment (no hints)"} · sim clock {fmtTime(session.sim_clock)}</p>
       </PageHead>
-      {session.status === "SUBMITTED" && (
+      {session.mission && (
+        <Banner tone="info">This workspace belongs to mission <strong>{session.mission.mission_id}</strong>. Submit your evidence and explanation from the <Link to={`/missions/${session.mission.attempt_id}`}>mission view</Link>; to start over use <em>Retry with practice or new variant</em> there.</Banner>
+      )}
+      {session.status === "SUBMITTED" && !session.mission && (
         <Banner tone="info">Submitted. Score {session.latest_attempt?.total_score}/100 — {session.latest_attempt?.passed ? "PASS" : "NOT PASSED"}. <Link to="/assessment">View results and reports</Link>. Reset to start a new attempt.</Banner>
       )}
       {session.status === "PAUSED" && <Banner tone="warn">Paused. All change operations are refused by the server until you resume.</Banner>}
@@ -256,7 +261,8 @@ export default function Workspace() {
               </div>
             ))}
             <hr />
-            <Link className="btn primary" to="/assessment">Submit for assessment</Link>
+            {session.mission ? <Link className="btn primary" to={`/missions/${session.mission.attempt_id}`}>Go to mission submission</Link>
+              : <Link className="btn primary" to="/assessment">Submit for assessment</Link>}
           </Card>
           <Card title="Environment state">
             <KV items={[

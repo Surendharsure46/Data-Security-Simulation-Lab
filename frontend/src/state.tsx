@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, hasToken, setToken, setUnauthorizedHandler } from "./api";
-import type { SessionDetail, User } from "./types";
+import type { CareerProfile, SessionDetail, User } from "./types";
 
 // ----------------------------------------------------------------------------- auth
 
@@ -60,6 +60,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const c = useContext(AuthContext);
   if (!c) throw new Error("AuthProvider missing");
+  return c;
+}
+
+// ----------------------------------------------------------------------------- career profile (onboarding, level, role)
+
+interface CareerCtx {
+  profile: CareerProfile | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<CareerProfile | null>;
+  setProfile: (p: CareerProfile) => void;
+}
+
+const CareerContext = createContext<CareerCtx | null>(null);
+
+export function CareerProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<CareerProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!user) {
+      setProfile(null);
+      return null;
+    }
+    try {
+      const p = await api.get<CareerProfile>("/api/career/profile");
+      setProfile(p);
+      setError(null);
+      return p;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  return <CareerContext.Provider value={{ profile, loading, error, refresh, setProfile }}>{children}</CareerContext.Provider>;
+}
+
+/** Career context when inside CareerProvider (signed in), otherwise null. */
+export function useOptionalCareer() {
+  return useContext(CareerContext);
+}
+
+export function useCareer() {
+  const c = useContext(CareerContext);
+  if (!c) throw new Error("CareerProvider missing");
   return c;
 }
 

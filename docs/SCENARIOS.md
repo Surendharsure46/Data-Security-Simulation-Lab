@@ -54,6 +54,10 @@ PRESERVE_EVIDENCE, DISABLE_ACCOUNT, REVOKE_SESSIONS, BLOCK_DESTINATION, QUARANTI
 
 14 cases (8 should be prevented, 6 legitimate) used by Data Security Engineering to compute TP/FP/TN/FN, precision and recall with an explicit scope note.
 
+### Mission phases
+
+Every task also carries a `phase` used by the mission workflow (`UNDERSTAND`, `INSPECT`, `ACT`, `OBSERVE`, `VALIDATE`, `SUBMIT`). The reference scenario maps discover/inspect/case/analysis/scope → INSPECT; classify/access_review/policy/policy_test/contain/fix → ACT; run_day/triage → OBSERVE; verify → VALIDATE; report → SUBMIT. Phases group work for display. They do not force an order, and completion is still computed from state.
+
 ## Adding a scenario
 
 Create `app/content/scenarios/<id>.json` matching `ScenarioDefinition`; run `python -m app.cli validate-content`. Unknown checks, identities, assets, destinations, grants or steps are rejected; category weights must total 100.

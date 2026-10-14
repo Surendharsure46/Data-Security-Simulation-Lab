@@ -12,6 +12,7 @@
 | DLP engineer | I write a policy, test it against prohibited and legitimate transfers, measure precision/recall on a labelled set and record a change. | Implemented |
 | SOC analyst | I triage alerts, correlate events with explained relationships, scope the exposure and write an evidence-based report. | Implemented |
 | Data protection engineer | I encrypt files, rotate keys, harden a database role model and verify restores in real local labs. | Implemented (REAL_LAB) |
+| New hire (career workflow) | I am onboarded into the organisation, receive missions from the business, prove my work with an explanation and cited evidence, see my skill gaps and a remedial lesson when I fail, retry with practice or a new variant, and am promoted to a role with harder challenges when a level is complete. | Implemented (docs/WORKFLOW.md) |
 | Learner (assessment) | I take an unfamiliar variant without hints and get an explainable score with critical-failure rules. | Implemented |
 | Instructor | I review learners' sessions read-only and see the audit trail. | Implemented |
 | Administrator | I manage users/roles and connector switches. | Implemented |

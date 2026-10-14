@@ -7,9 +7,13 @@ function Done({ ok }: { ok: boolean }) {
   return ok ? <Badge tone="ok">Exercise passed</Badge> : <Badge>Not yet passed</Badge>;
 }
 
-export default function PrivacyLab() {
+export interface LabViewProps { embedded?: boolean; focus?: string[]; onChange?: () => void }
+
+export default function PrivacyLab({ embedded = false, focus, onChange }: LabViewProps = {}) {
   const toast = useToast();
-  const ov = useLoad(() => api.get("/api/labs/privacy"), []);
+  const ov0 = useLoad(() => api.get("/api/labs/privacy"), []);
+  const ov = { ...ov0, reload: () => { ov0.reload(); onChange?.(); } };
+  const show = (x: string) => !focus || focus.includes(x);
   const [dec, setDec] = useState<Record<string, { decision: string; reason: string }>>({});
   const [minRes, setMinRes] = useState<any>(null);
   const [rule, setRule] = useState({ inactive_days: 365, no_consent_days: 90, respect_legal_hold: true });
@@ -22,16 +26,16 @@ export default function PrivacyLab() {
   const decisions = { ...Object.fromEntries(d.fields.map((f: string) => [f, d.state.field_decisions[f] ?? { decision: "KEEP", reason: "" }])), ...dec };
   return (
     <>
-      <PageHead title="Privacy & Data Governance" crumbs="Privacy & Governance" mode="SIMULATED" actions={
+      {!embedded && <PageHead title="Privacy & Data Governance" crumbs="Privacy & Governance" mode="SIMULATED" actions={
         <ActionButton confirm="Restore the original 30 synthetic records and clear your decisions?" onClick={async () => { await api.post("/api/labs/privacy/reset"); setDec({}); setPreview(null); setExec(null); setReport(null); ov.reload(); }}>Reset lab</ActionButton>
       }>
         <p>{d.note} This lab teaches privacy-control practice; it is not legal advice and makes no compliance claim. Lab date: {d.lab_today}.</p>
-      </PageHead>
+      </PageHead>}
       <Card title="Documented purpose and records standard">
         <p><strong>Purpose:</strong> {d.purpose}</p>
         <p><strong>Standard:</strong> {d.retention_standard}</p>
       </Card>
-      <Card title="1. Data minimisation" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("minimization")} /></>}>
+      {show("minimization") && <Card title="1. Data minimisation" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("minimization")} /></>}>
         <p className="small">For each field in the marketing-leads dataset, decide KEEP or REMOVE for the documented purpose and give a reason.</p>
         <div className="table-wrap"><table>
           <thead><tr><th>Field</th><th>Example value</th><th>Decision</th><th>Reason</th></tr></thead>
@@ -45,8 +49,8 @@ export default function PrivacyLab() {
         {minRes && (minRes.passed ? <Banner tone="ok">Minimisation decisions accepted. {minRes.note}</Banner> : (
           <Banner tone="warn">Not yet: {minRes.missing_removals.length > 0 && `fields not needed for this purpose remain (${minRes.missing_removals.length}); `}{minRes.wrongly_removed.length > 0 && `fields the purpose or retention rules depend on were removed (${minRes.wrongly_removed.length}).`}</Banner>
         ))}
-      </Card>
-      <Card title="2. Retention and verified deletion" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("retention")} /></>}>
+      </Card>}
+      {show("retention") && <Card title="2. Retention and verified deletion" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("retention")} /></>}>
         <div className="grid three">
           <Field label="Delete when inactive for more than (days)"><input type="number" min={1} value={rule.inactive_days} onChange={(e) => setRule({ ...rule, inactive_days: Number(e.target.value) })} /></Field>
           <Field label="Delete leads without consent after (days)"><input type="number" min={1} value={rule.no_consent_days} onChange={(e) => setRule({ ...rule, no_consent_days: Number(e.target.value) })} /></Field>
@@ -69,14 +73,14 @@ export default function PrivacyLab() {
         )}
         {exec && <Banner tone={exec.passed ? "ok" : "danger"}>Deleted {exec.deleted.length}; remaining {exec.remaining}. {exec.verification} {exec.feedback}</Banner>}
         {d.state.critical && <Banner tone="danger">Critical: {d.state.critical}</Banner>}
-      </Card>
-      <Card title="3. Privacy findings report" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("report")} /></>}>
+      </Card>}
+      {show("report") && <Card title="3. Privacy findings report" actions={<><Provenance mode="SIMULATED" /><Done ok={passed.includes("report")} /></>}>
         <div className="row">
           <ActionButton onClick={async () => { setReport(await api.text("/api/labs/privacy/report")); ov.reload(); }}>Generate report</ActionButton>
           <ActionButton onClick={() => download("/api/labs/privacy/report", "privacy-findings-report.md")}>Download Markdown</ActionButton>
         </div>
         {report && <pre style={{ marginTop: 8 }}>{report}</pre>}
-      </Card>
+      </Card>}
     </>
   );
 }
